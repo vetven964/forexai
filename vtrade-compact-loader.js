@@ -1,4 +1,4 @@
-// V-TRADE compact Telegram formatter loader V8
+// V-TRADE compact Telegram formatter loader
+// Retired: server.js is now the single permanent owner of the compact renderer.
 'use strict';
-try { require('./telegram-compact-v8'); console.log('[V-TRADE TELEGRAM] Compact V8 loader active'); }
-catch (e) { console.error('[V-TRADE TELEGRAM] Compact V8 loader failed:', e && e.stack ? e.stack : e.message); }
+console.log('[V-TRADE TELEGRAM] compact loader retired — server.js is authoritative');
