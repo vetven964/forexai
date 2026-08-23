@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store,no-cache,must-revalidate,max-age=0">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>V TRADE AI — Backend Connection</title>
+<style>
+:root{--bg:#050912;--panel:#09111e;--line:#263957;--text:#f5f8ff;--muted:#8d9bb0;--ok:#22e58a;--bad:#ff5968;--v:#7136e8}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 10% 0,#241348,transparent 32%),radial-gradient(circle at 90% 5%,#073b43,transparent 30%),var(--bg);color:var(--text);font:15px -apple-system,BlinkMacSystemFont,"SF Pro Text",Segoe UI,Arial,sans-serif}body{min-height:100dvh;display:grid;place-items:center;padding:18px}.box{width:min(760px,100%);padding:30px;border:1px solid var(--line);border-radius:26px;background:#07101cf7;box-shadow:0 30px 90px #000b}.title{font-size:18px;letter-spacing:.18em;color:#aab8cd;margin:0 0 24px}.field{width:100%;min-height:74px;padding:20px;border:1px solid #31496b;border-radius:22px;background:#07101c;color:#f5f8ff;font-size:20px;line-height:1.4;overflow-wrap:anywhere}.btn{width:100%;margin-top:18px;min-height:64px;border:1px solid #8050ff;border-radius:22px;background:linear-gradient(135deg,#5421cf,#7136e8);color:#fff;font-size:22px;font-weight:800;cursor:pointer}.status{margin-top:18px;padding:22px;border:1px solid var(--line);border-radius:22px;background:#07101c;color:#aebbd0;line-height:1.5;overflow-wrap:anywhere}.status.ok{border-color:#147850;background:#062d20;color:#a8ffd6}.status.bad{border-color:#7c2532;background:#2b0c13;color:#ff9aa6}.meta{margin-top:12px;color:#7f8fa7;font-size:12px}.back{display:inline-block;margin-top:18px;color:#35d8ff;text-decoration:none;font-size:13px}
+</style>
+</head>
+<body>
+<main class="box">
+<h1 class="title">BACKEND CONNECTION</h1>
+<div id="backendUrl" class="field">https://forexai-6xw6.onrender.com</div>
+<button id="refresh" class="btn" type="button">↻ Refresh</button>
+<div id="status" class="status" role="status" aria-live="polite">Checking Render backend…</div>
+<div id="meta" class="meta"></div>
+<a class="back" href="index.html">← Back to V TRADE AI</a>
+</main>
+<script>
+'use strict';
+const BACKEND='https://forexai-6xw6.onrender.com';
+const $=id=>document.getElementById(id);
+const setStatus=(text,ok)=>{const el=$('status');if(!el)return;el.textContent=text;el.classList.toggle('ok',!!ok);el.classList.toggle('bad',ok===false)};
+async function check(){
+ const button=$('refresh');if(button)button.disabled=true;
+ setStatus('Checking Render backend…',null);$('meta').textContent='';
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
+ try{
+   const response=await fetch(BACKEND+'/api/health',{method:'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
+   const text=await response.text();let data={};
+   try{data=text?JSON.parse(text):{}}catch{data={}};
+   if(!response.ok)throw new Error(data?.error||`HTTP ${response.status}`);
+   const label=data?.success===false?'Render backend responded':'Render backend connected';
+   setStatus('● '+label,true);
+   $('meta').textContent=`HTTP ${response.status} · ${BACKEND}`;
+ }catch(error){
+   const message=error?.name==='AbortError'?'Render backend timeout.':String(error?.message||error);
+   setStatus('Backend connection failed: '+message,false);
+   $('meta').textContent=`Check Render service, /api/health, and CORS. · ${BACKEND}`;
+ }finally{clearTimeout(timer);if(button)button.disabled=false}
+}
+$('refresh').addEventListener('click',check);
+check();
+</script>
+</body>
+</html>
