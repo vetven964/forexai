@@ -1,11 +1,11 @@
-// V-TRADE Telegram final presentation hotfix V7
+// V-TRADE Telegram final presentation hotfix V7.1
 // Khmer + English presentation; preserves fail-closed ICT authorization.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const SERVER_FILE = path.resolve(__dirname, 'server.js');
-const MARKER = 'VTRADE_TELEGRAM_FINAL_FORMAT_V7';
+const MARKER = 'VTRADE_TELEGRAM_FINAL_FORMAT_V7_1';
 
 function formatterSource() {
   return [
@@ -14,6 +14,7 @@ function formatterSource() {
     '  a = a || {};',
     '  function num(v){var n=Number(v);return Number.isFinite(n)?n.toFixed(2):"WAIT";}',
     '  function ok(v){return v===true?"✅":"❌";}',
+    '  function confirmed(v){return v===true||v===1||String(v).toLowerCase()==="true"||String(v).toUpperCase()==="PASS";}',
     '  function bilingualGateReason(x){',
     '    var s=String(x||"");',
     '    var weekend=new Date().getUTCDay()===0||new Date().getUTCDay()===6;',
@@ -34,11 +35,14 @@ function formatterSource() {
     '  var confidence=Number(a.confidence!=null?a.confidence:0);',
     '  var price=num(a.livePrice!=null?a.livePrice:(a.price!=null?a.price:a.bid));',
     '  var g=a.gates||a.confirmations||{};',
-    '  var mtfOk=a.mtfAligned===true||(Array.isArray(a.mtf)&&a.mtf.length>=4);',
-    '  var mssOk=g.mss===true||g.bos===true;',
-    '  var liqOk=g.liquiditySweep===true;',
-    '  var fvgOk=g.fvg===true;',
-    '  var obOk=g.orderBlock===true;',
+    '  var ict=a.ict||{};',
+    '  var mtfRows=a.mtf?.timeframes||a.timeframes||a.frames||{};',
+    '  var mtfReadyRows=["M5","M15","H1","H4"].every(function(tf){var r=mtfRows[tf]||mtfRows[tf.toLowerCase()]||{};return r.ready===true||Number(r.bars||r.feedBars||r.candles?.length||0)>=30;});',
+    '  var mtfOk=confirmed(a.mtfAligned)||confirmed(a.mtfOk)||confirmed(a.mtfAlignmentOk)||confirmed(g.mtfOk)||confirmed(g.mtfAlignmentOk)||mtfReadyRows;',
+    '  var mssOk=confirmed(g.mss)||confirmed(g.bos)||confirmed(g.mssOk)||confirmed(g.bosOk)||confirmed(g.structureAgreement)||String(ict.mss||"").toUpperCase()!=="NEUTRAL"||String(ict.bos||"").toUpperCase()!=="NEUTRAL";',
+    '  var liqOk=confirmed(g.liquiditySweep)||confirmed(g.liquiditySweepOk)||confirmed(g.liquidityOk)||confirmed(g.sweepOk)||confirmed(ict.liquiditySweep?.confirmed);',
+    '  var fvgOk=confirmed(g.fvg)||confirmed(g.fvgOk)||confirmed(ict.fvg?.confirmed)||String(ict.fvg?.type||"").toUpperCase()!=="";',
+    '  var obOk=confirmed(g.orderBlock)||confirmed(g.orderBlockOk)||confirmed(g.obOk)||confirmed(ict.orderBlock?.confirmed)||String(ict.orderBlock?.type||"").toUpperCase()!=="";',
     '  var canonical=a.tradeAuthorized===true;',
     '  var sideOk=signal==="BUY"||signal==="SELL";',
     '  var authorized=canonical&&sideOk&&mtfOk&&mssOk&&liqOk&&(fvgOk||obOk);',
@@ -93,7 +97,7 @@ function formatterSource() {
 function install(){
   if(!fs.existsSync(SERVER_FILE)){console.warn('[V-TRADE TELEGRAM] final formatter skipped: server.js missing');return;}
   let source=fs.readFileSync(SERVER_FILE,'utf8');
-  if(source.indexOf(MARKER)>=0){console.log('[V-TRADE TELEGRAM] final formatter V7 already active');return;}
+  if(source.indexOf(MARKER)>=0){console.log('[V-TRADE TELEGRAM] final formatter V7.1 already active');return;}
   var start=source.indexOf('function telegramTierText(a) {');
   var marker='function telegramWaitText(a) {';
   if(start<0) start=source.indexOf(marker);
@@ -102,6 +106,6 @@ function install(){
   if(end<0){console.warn('[V-TRADE TELEGRAM] final formatter skipped: formatter boundary not found');return;}
   source=source.slice(0,start)+formatterSource()+source.slice(end);
   fs.writeFileSync(SERVER_FILE,source,'utf8');
-  console.log('[V-TRADE TELEGRAM] final formatter V7 installed | Khmer + English | weekend-aware stale gate | fail-closed');
+  console.log('[V-TRADE TELEGRAM] final formatter V7.1 installed | canonical MTF/ICT gate aliases | fail-closed');
 }
-try{install();}catch(e){console.error('[V-TRADE TELEGRAM] final formatter V7 failed:',e&&e.stack?e.stack:e.message);process.exitCode=1;}
+try{install();}catch(e){console.error('[V-TRADE TELEGRAM] final formatter V7.1 failed:',e&&e.stack?e.stack:e.message);process.exitCode=1;}
