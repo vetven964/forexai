@@ -1,11 +1,11 @@
-// V-TRADE AI — final Telegram formatter apply hook
-// Loaded after the Local ICT runtime prepares server.js and before server.js
-// is finally required by server-launcher.js.
+// V-TRADE AI — final Telegram formatter apply hook V3
+// Single final formatter entry point. Safe to load more than once.
 'use strict';
 
 try {
+  const marker = '[V-TRADE TELEGRAM] final formatter V5 active';
   require('./telegram-final-format-hotfix.js');
-  console.log('[V-TRADE TELEGRAM] final formatter V2 apply hook active');
+  console.log(marker + ' | Khmer + English | fail-closed');
 } catch (e) {
-  console.warn('[V-TRADE TELEGRAM] final formatter V2 skipped safely:', e.message);
+  console.warn('[V-TRADE TELEGRAM] final formatter apply skipped safely:', e && e.message ? e.message : e);
 }
