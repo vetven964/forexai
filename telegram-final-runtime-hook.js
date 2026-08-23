@@ -2,7 +2,7 @@
 const fs=require('fs');
 const path=require('path');
 const AI=path.resolve(__dirname,'ai-confirmation-runtime-v2.js');
-const MARK='VTRADE_FINAL_RUNTIME_HOOK_V1';
+const MARK='VTRADE_FINAL_RUNTIME_HOOK_V2';
 try{
  if(fs.existsSync(AI)){
   let s=fs.readFileSync(AI,'utf8');
@@ -12,8 +12,10 @@ try{
    if(i>=0){
     s=s.slice(0,i)+needle+'\n// '+MARK+'\ntry { require(\'./telegram-final-apply.js\'); } catch (e) { console.warn(\'[V-TRADE TELEGRAM] final apply hook skipped:\',e.message); }'+s.slice(i+needle.length);
     fs.writeFileSync(AI,s,'utf8');
-    console.log('[V-TRADE TELEGRAM] final formatter runtime hook installed');
+    console.log('[V-TRADE TELEGRAM] final formatter runtime hook V2 installed | single final formatter');
    }
+  } else {
+   console.log('[V-TRADE TELEGRAM] final formatter runtime hook V2 already active');
   }
  }
 }catch(e){console.warn('[V-TRADE TELEGRAM] final runtime hook skipped safely:',e.message);}
