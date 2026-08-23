@@ -31,6 +31,15 @@ if (typeof globalThis.__vtradeTelegramAutoReadinessLog === 'undefined') {
   globalThis.__vtradeTelegramAutoReadinessLog = '';
 }
 
+// Telegram Auto symbol-safety hotfix must run before server-launcher compiles
+// server.js, so the first scanner cycle cannot resolve a missing helper symbol.
+try {
+  require('./telegram-auto-symbol-hotfix.js');
+} catch (e) {
+  console.error('[V-TRADE TELEGRAM] symbol-safety preload failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
+
 console.log(
   '[V-TRADE TELEGRAM SEPARATION] Auto runtime preserved | enabled=' +
   (process.env.TELEGRAM_AUTO_ALERT_ENABLED === 'true') +
