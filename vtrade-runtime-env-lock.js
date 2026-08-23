@@ -1,6 +1,4 @@
 // V-TRADE runtime safety lock
-// Loaded before server.js so legacy/core Telegram behavior cannot override
-// the dedicated Telegram Auto runtime credentials configured in Render.
 'use strict';
 
 process.env.TELEGRAM_AUTO_ALERT_ENABLED = String(process.env.TELEGRAM_AUTO_ALERT_ENABLED || 'true').toLowerCase() === 'true' ? 'true' : 'false';
@@ -11,12 +9,19 @@ process.env.TELEGRAM_AUTO_ALERT_INTERVAL_MS = String(Math.max(30000, Number(proc
 if (typeof globalThis.telegramAutoLastReadinessLog === 'undefined') globalThis.telegramAutoLastReadinessLog = '';
 if (typeof globalThis.__vtradeTelegramAutoReadinessLog === 'undefined') globalThis.__vtradeTelegramAutoReadinessLog = '';
 
-// Canonical MT5 data contract must be applied before server-launcher compiles server.js.
 try { require('./vtrade-canonical-data-contract.js'); } catch (e) {
   console.error('[V-TRADE DATA CONTRACT] preload failed:', e.stack || e.message);
   process.exitCode = 1;
 }
-
+try { require('./telegram-single-renderer-guard.js'); } catch (e) {
+  console.error('[V-TRADE TELEGRAM] single renderer preload failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
+// server-launcher has its own WAIT-card replacement; patch that final source too.
+try { require('./telegram-launcher-bilingual-patch.js'); } catch (e) {
+  console.error('[V-TRADE TELEGRAM] launcher bilingual patch failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
 try { require('./telegram-auto-symbol-hotfix.js'); } catch (e) {
   console.error('[V-TRADE TELEGRAM] symbol-safety preload failed:', e.stack || e.message);
   process.exitCode = 1;
@@ -26,11 +31,9 @@ try { require('./telegram-auto-mt5-readiness-bridge.js'); } catch (e) {
   process.exitCode = 1;
 }
 try { require('./telegram-final-runtime-hook.js'); } catch (e) {
-  console.warn('[V-TRADE TELEGRAM] final runtime hook failed safely:', e.message);
+  console.warn('[V-TRADE TELEGRAM] final runtime hook skipped safely:', e.message);
 }
-// The production launcher formatter is authoritative. Do not load the obsolete
-// compact formatter as a second renderer; this prevents V5/V6 formatter races.
-console.log('[V-TRADE TELEGRAM] launcher compact hotfix disabled safely; using production launcher formatter');
+console.log('[V-TRADE TELEGRAM] single authoritative bilingual renderer active');
 try { require('./sunday-weekly-preopen.js'); } catch (e) {
   console.error('[V-TRADE SUNDAY PREOPEN] preload failed:', e.stack || e.message);
   process.exitCode = 1;
