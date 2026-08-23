@@ -1,0 +1,25 @@
+'use strict';
+
+// V-TRADE Telegram — single authoritative renderer guard.
+// This preload disables legacy formatter mutation paths and provides the
+// canonical bilingual formatter used by the production Telegram runtime.
+const fs = require('fs');
+const path = require('path');
+const SERVER_FILE = path.resolve(__dirname, 'server.js');
+const MARKER = 'VTRADE_TELEGRAM_SINGLE_RENDERER_V1';
+
+function install() {
+  if (!fs.existsSync(SERVER_FILE)) return;
+  let source = fs.readFileSync(SERVER_FILE, 'utf8');
+  if (source.includes(MARKER)) return;
+
+  const start = source.indexOf('function telegramWaitText(a) {');
+  if (start < 0) return;
+  const end = source.indexOf('\nfunction ', start + 10);
+  if (end < 0) return;
+
+  const fn = `// ${MARKER}\nfunction telegramWaitText(a) {\n  a = a || {};\n  const n = v => { const x = Number(v); return Number.isFinite(x) ? x.toFixed(2) : 'WAIT'; };\n  const yes = v => v === true ? '✅' : '❌';\n  const signal = String(a.signal || a.action || 'WAIT').toUpperCase();\n  const bias = String(a.bias || a.directionBand || 'NEUTRAL').toUpperCase();\n  const score = Number(a.directionScore ?? a.aiScore ?? a.setupScore);\n  const confidence = Number(a.confidence ?? 0);\n  const price = n(a.livePrice ?? a.price ?? a.bid);\n  const g = a.gates || a.confirmations || {};\n  const mtf = a.mtfAligned === true || (Array.isArray(a.mtf) && a.mtf.length >= 4);\n  const mss = g.mss === true || g.bos === true;\n  const liq = g.liquiditySweep === true;\n  const fvg = g.fvg === true;\n  const ob = g.orderBlock === true;\n  const authorized = a.tradeAuthorized === true && (signal === 'BUY' || signal === 'SELL') && mtf && mss && liq && (fvg || ob);\n  const label = authorized ? (signal === 'BUY' ? 'UPTRADE — BUY | ទិញ' : 'DOWNTRADE — SELL | លក់') : (bias === 'BULLISH' ? 'UPTRADE BULLISH — WAIT | រង់ចាំ' : 'DOWNTRADE BEARISH — WAIT | រង់ចាំ');\n  const ai = a.aiConfirmation || a.ai || {};\n  const aiDecision = String(ai.decision || a.aiDecision || 'WAIT').toUpperCase();\n  const aiConfidence = Number(ai.confidence ?? a.aiConfidence ?? 0);\n  const agreement = String(ai.agreement || a.aiAgreement || 'NEUTRAL').toUpperCase();\n  const z = a.entryZone || a.executionZone || a.candidateZone || a.referenceZone || {};\n  const zone = Number.isFinite(Number(z.low)) && Number.isFinite(Number(z.high)) ? n(z.low) + '–' + n(z.high) : 'WAITING FOR CONFIRMATION | រង់ចាំការបញ្ជាក់';\n  const entry = authorized ? n(a.entry ?? a.entryPrice) : 'WAIT';\n  const sl = authorized ? n(a.stopLoss ?? a.sl) : 'WAIT';\n  const tp = Array.isArray(a.takeProfit) ? a.takeProfit : (Array.isArray(a.tp) ? a.tp : []);\n  const tp1 = authorized ? n(a.tp1 ?? tp[0]) : 'WAIT';\n  const tp2 = authorized ? n(a.tp2 ?? tp[1]) : 'WAIT';\n  const tp3 = authorized ? n(a.tp3 ?? tp[2]) : 'WAIT';\n  const rr = authorized ? String(a.rr || a.riskReward || 'WAIT') : 'WAIT';\n  const blocked = Array.isArray(a.score?.blockedReasons) ? a.score.blockedReasons.slice(0, 8).map(String) : [];\n  const gates = blocked.length ? blocked.map(x => '• ' + x).join('\\n') : '• No confirmed entry gate | មិនទាន់មាន Gate បញ្ជាក់';\n  const broker = String(a.broker || 'VT Markets MT5');\n  const age = Number(a.quoteAge ?? a.feedAgeSec ?? 0);\n  return [\n    '🤖 *V TRADE AI — ADVANCED ICT SIGNAL*','',\n    '📊 Asset / ទ្រព្យ: *XAU/USD (Gold)*',\n    '💰 Price / តម្លៃ: *' + price + '*',\n    '⚡ Action / សកម្មភាព: *' + (authorized ? (signal === 'BUY' ? '🟢 ' : '🔴 ') : '🟡 ') + label + '*',\n    '📈 Bias / ទិសដៅ: *' + bias + '*',\n    '📊 Direction Score / ពិន្ទុទិសដៅ: *' + (Number.isFinite(score) ? Math.round(score) : 0) + '/100*',\n    '🧠 Confidence / ទំនុកចិត្ត: *' + (Number.isFinite(confidence) ? Math.round(confidence) : 0) + '/100*','',\n    '🔎 *ICT ENTRY GATES / ច្រកបញ្ជាក់ ICT*', gates,'',\n    '🎯 Execution Zone / តំបន់ប្រតិបត្តិការ: *' + zone + '*',\n    '🟢 Entry / ចូល: *' + entry + '*',\n    '🛑 SL / Stop Loss: *' + sl + '*',\n    '🎯 TP1 / គោលដៅ 1: *' + tp1 + '*',\n    '🎯 TP2 / គោលដៅ 2: *' + tp2 + '*',\n    '🎯 TP3 / គោលដៅ 3: *' + tp3 + '*',\n    '📐 RR / Risk Reward: *' + rr + '*','',\n    'MSS/BOS: *' + yes(mss) + '*',\n    'Liquidity / សាច់ប្រាក់: *' + yes(liq) + '*',\n    'FVG: *' + yes(fvg) + '*',\n    'OB: *' + yes(ob) + '*',\n    'MTF: *' + yes(mtf) + '*','',\n    '🤖 AI Confirm: *' + aiDecision + '* | Confidence: *' + (Number.isFinite(aiConfidence) ? Math.round(aiConfidence) : 0) + '/100* | Agreement: *' + agreement + '*','',\n    authorized ? '🔐 *ORDER AUTHORIZED — អនុញ្ញាតបញ្ជា*' : '🛡️ *WAIT — រង់ចាំ | NO ORDER AUTHORIZED*','',\n    '🔒 ' + (authorized ? 'Required ICT gates passed | Gates ICT បានបញ្ជាក់គ្រប់' : 'No order until all required ICT execution gates pass | មិនអនុញ្ញាតបញ្ជា រហូតដល់ Gate ICT គ្រប់'),\n    '🏦 Broker / Broker: *' + broker + '* | Quote age: *' + (Number.isFinite(age) ? age : 0) + 's*'\n  ].join('\\n');\n}\n`;
+  fs.writeFileSync(SERVER_FILE, source.slice(0, start) + fn + source.slice(end), 'utf8');
+}
+
+try { install(); } catch (e) { console.warn('[V-TRADE TELEGRAM] single renderer guard skipped:', e.message); }
