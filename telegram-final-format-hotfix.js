@@ -19,24 +19,33 @@ function yn(v) { return v ? '✅' : '❌'; }
 
 function telegramWaitText(a) {
   a = a || {};
-  const signal = String(a.signal || a.action || 'WAIT').toUpperCase();
-  const bias = String(a.bias || a.directionBand || 'NEUTRAL').toUpperCase();
-  const score = Number(a.directionScore != null ? a.directionScore : (a.aiScore != null ? a.aiScore : a.setupScore));
-  const confidence = Number(a.confidence != null ? a.confidence : 0);
-  const price = num(a.livePrice != null ? a.livePrice : (a.price != null ? a.price : a.bid));
-  const g = a.gates || a.confirmations || {};
-  const ict = a.ict || {};
-  const reasons = Array.isArray(a.score?.blockedReasons) ? a.score.blockedReasons : [];
+  // Some runtime paths wrap the canonical analysis under data/result/analysis/preMarket.
+  // Normalize those containers only for display; execution authorization remains fail-closed.
+  const src = a.analysis || a.data || a.result || a.preMarket || a;
+  const signal = String(src.signal || src.action || a.signal || a.action || 'WAIT').toUpperCase();
+  const bias = String(src.bias || src.directionBand || a.bias || a.directionBand || 'NEUTRAL').toUpperCase();
+  const score = Number(src.directionScore != null ? src.directionScore : (src.aiScore != null ? src.aiScore : (src.setupScore != null ? src.setupScore : a.directionScore)));
+  const confidence = Number(src.confidence != null ? src.confidence : (a.confidence != null ? a.confidence : 0));
+  const price = num(src.livePrice != null ? src.livePrice : (src.price != null ? src.price : (a.livePrice != null ? a.livePrice : (a.price != null ? a.price : a.bid))));
+  const g = src.gates || src.confirmations || a.gates || a.confirmations || {};
+  const ict = src.ict || a.ict || {};
+  const reasons = Array.isArray(src.score?.blockedReasons) ? src.score.blockedReasons : (Array.isArray(a.score?.blockedReasons) ? a.score.blockedReasons : []);
   const blocked = p => reasons.some(x => p.test(String(x || '')));
-  const rows = a.mtf?.timeframes || a.timeframes || a.frames || {};
-  const mtfReady = ['M5','M15','H1','H4'].every(tf => {
+  const rows = src.mtf?.timeframes || src.mtf?.rows || src.timeframes || src.frames || a.mtf?.timeframes || a.timeframes || a.frames || {};
+  const tfReady = tf => {
     const r = rows[tf] || rows[tf.toLowerCase()] || {};
-    return r.ready === true || Number(r.bars || r.feedBars || r.candles?.length || 0) >= 30;
-  });
+    return r.ready === true || Number(r.bars || r.feedBars || r.candles?.length || r.history?.length || 0) >= 30;
+  };
+  const mtfReady = ['M5','M15','H1','H4'].every(tfReady);
   const mtf = !blocked(/MTF.*not aligned|MTF.*incomplete|timeframes.*available|MTF.*history.*not/i) &&
-    (confirmed(a.mtfAligned) || confirmed(a.mtfOk) || confirmed(a.mtfAlignmentOk) || confirmed(g.mtfOk) ||
-     confirmed(g.mtfAlignmentOk) || mtfReady || (Number(a.available) >= 4 && Number(a.required) >= 4) ||
-     a.complete === true || a.mtf?.complete === true || a.canonical?.mtfReady === true);
+    (confirmed(src.mtfReady) || confirmed(src.mtf?.ready) || confirmed(src.mtf?.complete) ||
+     confirmed(src.mtfAligned) || confirmed(src.mtfOk) || confirmed(src.mtfAlignmentOk) ||
+     confirmed(g.mtfOk) || confirmed(g.mtfAlignmentOk) || mtfReady ||
+     (Number(src.available) >= 4 && Number(src.required) >= 4) ||
+     (Number(a.available) >= 4 && Number(a.required) >= 4) ||
+     src.complete === true || src.mtf?.complete === true || src.canonical?.mtfReady === true ||
+     a.complete === true || a.canonical?.mtfReady === true ||
+     (src.feedReady === true && mtfReady));
   const mss = !blocked(/Fresh M5 MSS not confirmed|Fresh M5 MSS\/BOS structure break not confirmed/i) &&
     (confirmed(g.mss) || confirmed(g.bos) || confirmed(g.mssOk) || confirmed(g.bosOk) ||
      confirmed(g.structureAgreement) || confirmed(ict.mss?.confirmed) || confirmed(ict.bos?.confirmed));
@@ -47,24 +56,24 @@ function telegramWaitText(a) {
     (confirmed(g.fvg) || confirmed(g.fvgOk) || confirmed(ict.fvg?.confirmed));
   const ob = !blocked(/No fresh aligned FVG\/OB/i) &&
     (confirmed(g.orderBlock) || confirmed(g.orderBlockOk) || confirmed(g.obOk) || confirmed(ict.orderBlock?.confirmed));
-  const authorized = a.tradeAuthorized === true && (signal === 'BUY' || signal === 'SELL') && mtf && mss && liq && (fvg || ob);
+  const authorized = src.tradeAuthorized === true && (signal === 'BUY' || signal === 'SELL') && mtf && mss && liq && (fvg || ob);
   const action = authorized
     ? (signal === 'BUY' ? '🟢 BUY — AUTHORIZED' : '🔴 SELL — AUTHORIZED')
     : (bias === 'BULLISH' ? '🟡 WAIT — BUY BIAS' : bias === 'BEARISH' ? '🟡 WAIT — SELL BIAS' : '🟡 WAIT');
-  const ai = a.aiConfirmation || a.ai || {};
-  const aiDecision = String(ai.decision || a.aiDecision || 'WAIT').toUpperCase();
-  const aiConfidence = Number(ai.confidence != null ? ai.confidence : (a.aiConfidence != null ? a.aiConfidence : 0));
-  const agreement = String(ai.agreement || a.aiAgreement || 'NEUTRAL').toUpperCase();
-  const broker = String(a.broker || 'VT Markets MT5');
-  const age = Number(a.quoteAge != null ? a.quoteAge : (a.feedAgeSec != null ? a.feedAgeSec : 0));
-  const z = a.entryZone || a.executionZone || a.candidateZone || a.referenceZone || a.zone || {};
+  const ai = src.aiConfirmation || src.ai || a.aiConfirmation || a.ai || {};
+  const aiDecision = String(ai.decision || src.aiDecision || a.aiDecision || 'WAIT').toUpperCase();
+  const aiConfidence = Number(ai.confidence != null ? ai.confidence : (src.aiConfidence != null ? src.aiConfidence : (a.aiConfidence != null ? a.aiConfidence : 0)));
+  const agreement = String(ai.agreement || src.aiAgreement || a.aiAgreement || 'NEUTRAL').toUpperCase();
+  const broker = String(src.broker || a.broker || 'VT Markets MT5');
+  const age = Number(src.quoteAge != null ? src.quoteAge : (src.feedAgeSec != null ? src.feedAgeSec : (a.quoteAge != null ? a.quoteAge : (a.feedAgeSec != null ? a.feedAgeSec : 0))));
+  const z = src.entryZone || src.executionZone || src.candidateZone || src.referenceZone || src.zone || a.entryZone || a.executionZone || a.zone || {};
   const zone = Number.isFinite(Number(z.low)) && Number.isFinite(Number(z.high)) ? num(z.low) + '–' + num(z.high) : 'WAIT';
-  const entry = authorized ? num(a.entry != null ? a.entry : a.entryPrice) : 'WAIT';
-  const sl = authorized ? num(a.stopLoss != null ? a.stopLoss : a.sl) : 'WAIT';
-  const tp = Array.isArray(a.takeProfit) ? a.takeProfit : (Array.isArray(a.tp) ? a.tp : []);
-  const tp1 = authorized ? num(a.tp1 != null ? a.tp1 : tp[0]) : 'WAIT';
-  const tp2 = authorized ? num(a.tp2 != null ? a.tp2 : tp[1]) : 'WAIT';
-  const tp3 = authorized ? num(a.tp3 != null ? a.tp3 : tp[2]) : 'WAIT';
+  const entry = authorized ? num(src.entry != null ? src.entry : (src.entryPrice != null ? src.entryPrice : a.entry)) : 'WAIT';
+  const sl = authorized ? num(src.stopLoss != null ? src.stopLoss : (src.sl != null ? src.sl : a.stopLoss)) : 'WAIT';
+  const tp = Array.isArray(src.takeProfit) ? src.takeProfit : (Array.isArray(src.tp) ? src.tp : (Array.isArray(a.takeProfit) ? a.takeProfit : []));
+  const tp1 = authorized ? num(src.tp1 != null ? src.tp1 : tp[0]) : 'WAIT';
+  const tp2 = authorized ? num(src.tp2 != null ? src.tp2 : tp[1]) : 'WAIT';
+  const tp3 = authorized ? num(src.tp3 != null ? src.tp3 : tp[2]) : 'WAIT';
 
   return [
     '🤖 *V TRADE AI — XAUUSD*',
@@ -79,10 +88,6 @@ function telegramWaitText(a) {
   ].join('\n');
 }
 
-// The production launcher installs its own Module loader and contains the old
-// long WAIT renderer. Replace that function in the source before handing the
-// source back to the launcher's loader. Renaming the function also prevents
-// patchWaitCard() from matching and overwriting it again.
 const previousLoader = Module._extensions['.js'];
 if (previousLoader && !previousLoader.__vtradeCompactEnforced) {
   const loader = function vtradeCompactEnforcedLoader(mod, filename) {
@@ -94,16 +99,10 @@ if (previousLoader && !previousLoader.__vtradeCompactEnforced) {
     if (pattern.test(compactSource)) compactSource = compactSource.replace(pattern, fn);
     const originalRead = fs.readFileSync;
     fs.readFileSync = function patchedRead(file, encoding) {
-      if (path.resolve(String(file)) === SERVER_FILE) {
-        return encoding ? compactSource : Buffer.from(compactSource, 'utf8');
-      }
+      if (path.resolve(String(file)) === SERVER_FILE) return encoding ? compactSource : Buffer.from(compactSource, 'utf8');
       return originalRead.apply(fs, arguments);
     };
-    try {
-      return previousLoader(mod, filename);
-    } finally {
-      fs.readFileSync = originalRead;
-    }
+    try { return previousLoader(mod, filename); } finally { fs.readFileSync = originalRead; }
   };
   loader.__vtradeCompactEnforced = true;
   Module._extensions['.js'] = loader;
