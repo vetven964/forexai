@@ -10,15 +10,10 @@ const MARKER = 'VTRADE_TELEGRAM_COMPACT_FORMAT_V3';
 function patch() {
   if (!fs.existsSync(LAUNCHER)) throw new Error('server-launcher.js not found');
   let source = fs.readFileSync(LAUNCHER, 'utf8');
-  if (source.includes(MARKER)) {
-    console.log('[V-TRADE TELEGRAM] compact formatter V3 already active');
-    return;
-  }
-
+  if (source.includes(MARKER)) return;
   const start = source.indexOf('function patchWaitCard(source) {');
   const end = source.indexOf('\nfunction patchFrontend(source) {', start);
   if (start < 0 || end < 0) throw new Error('patchWaitCard anchors not found');
-
   const replacement = String.raw`function patchWaitCard(source) {
   // ${MARKER}
   const waitSource = [
@@ -45,7 +40,7 @@ function patch() {
     "  const fvg=Boolean(gates.fvgOk ?? gates.fvg);",
     "  const ob=Boolean(gates.orderBlockOk ?? gates.obOk ?? gates.orderBlock);",
     "  const mtf=Boolean(gates.mtfOk ?? gates.mtfAlignmentOk ?? a?.mtfOk);",
-    "  const authorized=a?.tradeAuthorized===true || a?.setupReady===true && blocked.length===0;",
+    "  const authorized=a?.tradeAuthorized===true || (a?.setupReady===true && blocked.length===0);",
     "  const side=bias==='BULLISH'?'BUY':bias==='BEARISH'?'SELL':'';",
     "  if(authorized && side){",
     "    const entry=Number(a?.entry ?? a?.entryPrice ?? a?.livePrice);",
@@ -59,15 +54,13 @@ function patch() {
     "  return ['🤖 *V TRADE AI — XAUUSD*','',action,'💰 Price: *'+fmt(price)+'*','📈 Direction Score: *'+(Number.isFinite(score)?score:0)+'/100*','🧠 Confidence: *'+(Number.isFinite(confidence)?confidence:0)+'/100*','',gate('MSS/BOS',mss),gate('Liquidity',liquidity),gate('FVG/OB',fvg||ob),gate('MTF',mtf),'','🎯 Entry Zone: *'+zoneText+'*','🛑 SL: *WAIT*','🎯 TP1: *WAIT*','🎯 TP2: *WAIT*','🎯 TP3: *WAIT*','', '🤖 AI: *'+aiDecision+'* | '+(Number.isFinite(aiConfidence)?aiConfidence:0)+'/100 | '+agreement,'🔒 *WAIT — NO ORDER AUTHORIZED*','🏦 '+broker+' | Quote: '+age+'s'].join('\\n');",
     '}', ''
   ].join('\\n');
-  const pattern=/function\\s+telegramWaitText\\s*\\(a\\)\\s*\\{[\\s\\S]*?\\n\\}\\s*(?=\\n\\s*function\\s+)/;
+  const pattern=/function\s+telegramWaitText\s*\(a\)\s*\{[\s\S]*?\n\}\s*(?=\n\s*function\s+)/;
   if(pattern.test(source)) source=source.replace(pattern,waitSource);
   else throw new Error('telegramWaitText anchor not found');
   return source;
 }`;
-
   source = source.slice(0, start) + replacement + source.slice(end);
   fs.writeFileSync(LAUNCHER, source, 'utf8');
   console.log('[V-TRADE TELEGRAM] compact formatter V3 installed');
 }
-
 try { patch(); } catch (e) { console.error('[V-TRADE TELEGRAM] compact formatter V3 failed:', e.stack || e.message); throw e; }
