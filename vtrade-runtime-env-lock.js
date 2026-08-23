@@ -1,6 +1,4 @@
 // V-TRADE runtime safety lock
-// Loaded before server.js so legacy/core Telegram behavior cannot override
-// the dedicated Telegram Auto runtime credentials configured in Render.
 'use strict';
 
 process.env.TELEGRAM_AUTO_ALERT_ENABLED = String(process.env.TELEGRAM_AUTO_ALERT_ENABLED || 'true').toLowerCase() === 'true' ? 'true' : 'false';
@@ -15,13 +13,15 @@ try { require('./vtrade-canonical-data-contract.js'); } catch (e) {
   console.error('[V-TRADE DATA CONTRACT] preload failed:', e.stack || e.message);
   process.exitCode = 1;
 }
-
-// Install exactly one bilingual renderer before server-launcher compiles server.js.
 try { require('./telegram-single-renderer-guard.js'); } catch (e) {
   console.error('[V-TRADE TELEGRAM] single renderer preload failed:', e.stack || e.message);
   process.exitCode = 1;
 }
-
+// server-launcher has its own WAIT-card replacement; patch that final source too.
+try { require('./telegram-launcher-bilingual-patch.js'); } catch (e) {
+  console.error('[V-TRADE TELEGRAM] launcher bilingual patch failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
 try { require('./telegram-auto-symbol-hotfix.js'); } catch (e) {
   console.error('[V-TRADE TELEGRAM] symbol-safety preload failed:', e.stack || e.message);
   process.exitCode = 1;
