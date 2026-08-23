@@ -1,9 +1,9 @@
-// V-TRADE AI — final Telegram formatter apply hook V3
+// V-TRADE AI — final Telegram formatter apply hook V7
 // Single final formatter entry point. Safe to load more than once.
 'use strict';
 
 try {
-  const marker = '[V-TRADE TELEGRAM] final formatter V5 active';
+  const marker = '[V-TRADE TELEGRAM] final formatter V7 active';
   require('./telegram-final-format-hotfix.js');
   console.log(marker + ' | Khmer + English | fail-closed');
 } catch (e) {
