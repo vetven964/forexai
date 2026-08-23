@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SERVER_FILE = path.resolve(__dirname, 'server.js');
-const MARKER = 'VTRADE_TELEGRAM_FINAL_FORMAT_V1';
+const MARKER = 'VTRADE_TELEGRAM_FINAL_FORMAT_V2';
 
 function install() {
   if (!fs.existsSync(SERVER_FILE)) {
@@ -17,7 +17,7 @@ function install() {
 
   let source = fs.readFileSync(SERVER_FILE, 'utf8');
   if (source.includes(MARKER)) {
-    console.log('[V-TRADE TELEGRAM] final trade formatter already active');
+    console.log('[V-TRADE TELEGRAM] final trade formatter V2 already active');
     return;
   }
 
@@ -34,23 +34,29 @@ function install() {
 
   const fn = `// ${MARKER}\nfunction telegramTierText(a) {
   const n = x => Number.isFinite(Number(x)) ? Number(x).toFixed(2) : 'WAIT';
+  const signal = String(a?.signal || a?.action || 'WAIT').toUpperCase();
   const bias = String(a?.bias || a?.directionBand || 'NEUTRAL').toUpperCase();
   const score = Number(a?.directionScore ?? a?.aiScore ?? a?.setupScore ?? 0);
   const confidence = Number(a?.confidence ?? a?.score?.confidence ?? 0);
   const price = n(a?.livePrice ?? a?.price ?? a?.bid ?? a?.ask);
-  const authorized = a?.tradeAuthorized === true || a?.setupReady === true;
-  const strong = a?.strongTrade === true || (authorized && confidence >= 85 && score >= 80);
-  const type = bias === 'BULLISH' ? (strong ? 'UPTRADE STRONG LONG' : 'UPTRADE BULLISH') : bias === 'BEARISH' ? (strong ? 'DOWNTRADE STRONG SHORT' : 'DOWNTRADE BEARISH') : 'WAIT';
-  const icon = bias === 'BULLISH' ? '🟢' : bias === 'BEARISH' ? '🔴' : '🟡';
+
+  // CRITICAL: only the canonical engine authorization may produce a trade card.
+  // A directional BULLISH/BEARISH bias or setupReady alone is never authorization.
+  const authorized = a?.tradeAuthorized === true && (signal === 'BUY' || signal === 'SELL');
+  const strong = a?.strongTrade === true && authorized;
+  const type = authorized
+    ? (signal === 'BUY' ? (strong ? 'UPTRADE STRONG LONG' : 'UPTRADE NOW') : (strong ? 'DOWNTRADE STRONG SHORT' : 'DOWNTRADE NOW'))
+    : (bias === 'BULLISH' ? 'WAIT — BUY BIAS' : bias === 'BEARISH' ? 'WAIT — SELL BIAS' : 'WAIT — NO ENTRY');
+  const icon = authorized ? (signal === 'BUY' ? '🟢' : '🔴') : '🟡';
   const z = a?.entryZone || a?.candidateZone || a?.referenceZone || a?.zone || {};
-  const zone = Number.isFinite(Number(z?.low)) && Number.isFinite(Number(z?.high)) ? n(z.low) + '–' + n(z.high) : 'WAIT';
-  const entry = n(a?.entry ?? a?.entryPrice);
-  const sl = n(a?.stopLoss ?? a?.sl);
+  const zone = authorized && Number.isFinite(Number(z?.low)) && Number.isFinite(Number(z?.high)) ? n(z.low) + '–' + n(z.high) : 'WAIT';
+  const entry = authorized ? n(a?.entry ?? a?.entryPrice) : 'WAIT';
+  const sl = authorized ? n(a?.stopLoss ?? a?.sl) : 'WAIT';
   const tp = Array.isArray(a?.takeProfit) ? a.takeProfit : Array.isArray(a?.tp) ? a.tp : [];
-  const tp1 = n(a?.tp1 ?? tp[0]);
-  const tp2 = n(a?.tp2 ?? tp[1]);
-  const tp3 = n(a?.tp3 ?? tp[2]);
-  const rr = String(a?.rr || a?.riskReward || (strong ? '1:2.5' : 'WAIT'));
+  const tp1 = authorized ? n(a?.tp1 ?? tp[0]) : 'WAIT';
+  const tp2 = authorized ? n(a?.tp2 ?? tp[1]) : 'WAIT';
+  const tp3 = authorized ? n(a?.tp3 ?? tp[2]) : 'WAIT';
+  const rr = authorized ? String(a?.rr || a?.riskReward || 'WAIT') : 'WAIT';
   const g = a?.gates || a?.confirmations || {};
   const yes = v => v === true ? '✅' : '❌';
   const mtfOk = a?.mtf?.length === 4 || a?.mtfAligned === true;
@@ -83,7 +89,7 @@ function install() {
       'FVG/OB: *' + yes(fvgObOk) + '*',
       'MTF: *' + yes(mtfOk) + '*',
       '',
-      '🔐 *SIGNAL AUTHORIZED — AUTO ORDER OFF*'
+      '🔐 *ORDER AUTHORIZED — ALL REQUIRED GATES PASSED*'
     );
   } else {
     lines.push('',
@@ -109,7 +115,7 @@ function install() {
 
   source = source.slice(0, start) + fn + source.slice(end);
   fs.writeFileSync(SERVER_FILE, source, 'utf8');
-  console.log('[V-TRADE TELEGRAM] final trade formatter V1 installed');
+  console.log('[V-TRADE TELEGRAM] final trade formatter V2 installed');
 }
 
 try { install(); } catch (e) {
