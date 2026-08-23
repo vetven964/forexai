@@ -21,12 +21,6 @@ try { require('./telegram-auto-mt5-readiness-bridge.js'); } catch (e) {
   process.exitCode = 1;
 }
 
-// Compact trader-facing Telegram formatter must patch the launcher before Render loads it.
-try { require('./telegram-format-hotfix-v3.js'); } catch (e) {
-  console.error('[V-TRADE TELEGRAM] compact formatter preload failed:', e.stack || e.message);
-  process.exitCode = 1;
-}
-
 // Sunday-only weekly pre-open outlook. Analysis-only; it never authorizes orders.
 try { require('./sunday-weekly-preopen.js'); } catch (e) {
   console.error('[V-TRADE SUNDAY PREOPEN] preload failed:', e.stack || e.message);
