@@ -1,0 +1,1 @@
+Temporary note: canonical Telegram renderer work in fix/telegram-single-renderer.
