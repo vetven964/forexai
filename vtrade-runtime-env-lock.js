@@ -27,6 +27,12 @@ try { require('./sunday-weekly-preopen.js'); } catch (e) {
   process.exitCode = 1;
 }
 
+// Compact Telegram formatter is applied before server-launcher patches server.js.
+try { require('./telegram-format-hotfix-v3.js'); } catch (e) {
+  console.error('[V-TRADE TELEGRAM] compact formatter preload failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
+
 console.log('[V-TRADE TELEGRAM SEPARATION] Auto runtime preserved | enabled=' +
   (process.env.TELEGRAM_AUTO_ALERT_ENABLED === 'true') +
   ' | token=' + (process.env.TELEGRAM_AUTO_TOKEN ? 'configured' : 'missing') +
