@@ -1,4 +1,4 @@
-// V-TRADE AI — Sunday Weekly Pre-Open Telegram Outlook V3
+// V-TRADE AI — Sunday Weekly Pre-Open Telegram Outlook V4
 // Sunday-only weekly context report. Analysis-only; never authorizes orders.
 // Strong Long/Short requires real MTF readiness AND all ICT gates.
 'use strict';
@@ -26,21 +26,35 @@ function fmt(v) { return Number.isFinite(Number(v)) ? Number(v).toFixed(2) : '�
 function clamp(v) { return Math.max(0, Math.min(100, Number(v) || 0)); }
 
 async function getPreopen() {
-  const r = await fetch(`http://${INTERNAL_HOST}:${PORT}/api/pre-market/candle-open`, { signal: AbortSignal.timeout(10000) });
-  const raw = await r.json().catch(()=>({success:false,error:'Invalid pre-market response'}));
-  if (!r.ok || raw?.success === false) throw new Error(raw?.error || `HTTP ${r.status}`);
-  return raw;
+  const url = `http://${INTERNAL_HOST}:${PORT}/api/pre-market/candle-open`;
+  let lastError = null;
+  // The Sunday module is preloaded before the HTTP server is fully listening on Render.
+  // Retry transient startup/network failures instead of logging a false final failure.
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+      const raw = await r.json().catch(()=>({success:false,error:'Invalid pre-market response'}));
+      if (r.ok && raw?.success !== false) return raw;
+      lastError = new Error(raw?.error || `HTTP ${r.status}`);
+    } catch (e) {
+      lastError = e;
+    }
+    if (attempt < 5) await new Promise(resolve => setTimeout(resolve, Math.min(1000 * attempt, 4000)));
+  }
+  throw lastError || new Error('Pre-market endpoint unavailable');
 }
 
 function gateState(a) {
   const g = a?.gates || {};
+  const available = Number(a?.available ?? a?.mtfAvailable ?? 0);
+  const requiredMtf = Number(a?.requiredMtf ?? 4);
   return {
     liquidity: Boolean(g.liquiditySweep),
     mss: Boolean(g.mss),
     bos: Boolean(g.bos),
     fvg: Boolean(g.fvg),
     ob: Boolean(g.orderBlock),
-    mtf: Number(a?.available || 0) >= 5
+    mtf: available >= requiredMtf
   };
 }
 
@@ -84,7 +98,7 @@ function buildMessage(a) {
   const gateLine = [
     `MSS/BOS: ${g.mss && g.bos ? '✅' : '❌'}`,
     `Liquidity: ${g.liquidity ? '✅' : '❌'}`,
-    `FVG/OB: ${g.fvg && g.ob ? '✅' : '❌'}`,
+    `FVG/OB: ${g.fvg || g.ob ? '✅' : '❌'}`,
     `MTF: ${g.mtf ? '✅' : '❌'}`
   ].join(' | ');
   const lines = [
