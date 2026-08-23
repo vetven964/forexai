@@ -1,4 +1,4 @@
-// V-TRADE Telegram final presentation hotfix
+// V-TRADE Telegram final presentation hotfix V3
 // Patches the formatter AFTER Local ICT runtime prepares server.js.
 // Presentation only: never changes signal gates or authorization.
 'use strict';
@@ -7,20 +7,18 @@ const fs = require('fs');
 const path = require('path');
 
 const SERVER_FILE = path.resolve(__dirname, 'server.js');
-const MARKER = 'VTRADE_TELEGRAM_FINAL_FORMAT_V2';
+const MARKER = 'VTRADE_TELEGRAM_FINAL_FORMAT_V3';
 
 function install() {
   if (!fs.existsSync(SERVER_FILE)) {
     console.warn('[V-TRADE TELEGRAM] final formatter skipped: server.js missing');
     return;
   }
-
   let source = fs.readFileSync(SERVER_FILE, 'utf8');
   if (source.includes(MARKER)) {
-    console.log('[V-TRADE TELEGRAM] final trade formatter V2 already active');
+    console.log('[V-TRADE TELEGRAM] final trade formatter V3 already active');
     return;
   }
-
   const start = source.indexOf('function telegramTierText(a) {');
   if (start < 0) {
     console.warn('[V-TRADE TELEGRAM] final formatter skipped: telegramTierText not found');
@@ -31,7 +29,6 @@ function install() {
     console.warn('[V-TRADE TELEGRAM] final formatter skipped: formatter boundary not found');
     return;
   }
-
   const fn = `// ${MARKER}\nfunction telegramTierText(a) {
   const n = x => Number.isFinite(Number(x)) ? Number(x).toFixed(2) : 'WAIT';
   const signal = String(a?.signal || a?.action || 'WAIT').toUpperCase();
@@ -39,15 +36,24 @@ function install() {
   const score = Number(a?.directionScore ?? a?.aiScore ?? a?.setupScore ?? 0);
   const confidence = Number(a?.confidence ?? a?.score?.confidence ?? 0);
   const price = n(a?.livePrice ?? a?.price ?? a?.bid ?? a?.ask);
+  const g = a?.gates || a?.confirmations || {};
 
-  // CRITICAL: only the canonical engine authorization may produce a trade card.
-  // A directional BULLISH/BEARISH bias or setupReady alone is never authorization.
-  const authorized = a?.tradeAuthorized === true && (signal === 'BUY' || signal === 'SELL');
+  // FAIL-CLOSED: bias alone can NEVER become a trade.
+  const mtfOk = a?.mtf?.length === 4 || a?.mtfAligned === true;
+  const mssOk = g.mss === true && g.bos === true;
+  const liqOk = g.liquiditySweep === true;
+  const fvgObOk = g.fvg === true && g.orderBlock === true;
+  const allGates = mtfOk && mssOk && liqOk && fvgObOk;
+  const canonicalAuth = a?.tradeAuthorized === true;
+  const sideOk = signal === 'BUY' || signal === 'SELL';
+  const authorized = canonicalAuth && sideOk && allGates;
   const strong = a?.strongTrade === true && authorized;
+
   const type = authorized
     ? (signal === 'BUY' ? (strong ? 'UPTRADE STRONG LONG' : 'UPTRADE NOW') : (strong ? 'DOWNTRADE STRONG SHORT' : 'DOWNTRADE NOW'))
-    : (bias === 'BULLISH' ? 'WAIT — BUY BIAS' : bias === 'BEARISH' ? 'WAIT — SELL BIAS' : 'WAIT — NO ENTRY');
+    : (bias === 'BULLISH' ? 'BULLISH BIAS — WAIT' : bias === 'BEARISH' ? 'BEARISH BIAS — WAIT' : 'WAIT — NO ENTRY');
   const icon = authorized ? (signal === 'BUY' ? '🟢' : '🔴') : '🟡';
+
   const z = a?.entryZone || a?.candidateZone || a?.referenceZone || a?.zone || {};
   const zone = authorized && Number.isFinite(Number(z?.low)) && Number.isFinite(Number(z?.high)) ? n(z.low) + '–' + n(z.high) : 'WAIT';
   const entry = authorized ? n(a?.entry ?? a?.entryPrice) : 'WAIT';
@@ -57,16 +63,10 @@ function install() {
   const tp2 = authorized ? n(a?.tp2 ?? tp[1]) : 'WAIT';
   const tp3 = authorized ? n(a?.tp3 ?? tp[2]) : 'WAIT';
   const rr = authorized ? String(a?.rr || a?.riskReward || 'WAIT') : 'WAIT';
-  const g = a?.gates || a?.confirmations || {};
   const yes = v => v === true ? '✅' : '❌';
-  const mtfOk = a?.mtf?.length === 4 || a?.mtfAligned === true;
-  const mssOk = g.mss === true || g.bos === true || g.mssFresh === true || g.bosFresh === true;
-  const liqOk = g.liquiditySweep === true || g.liquidity === true;
-  const fvgObOk = g.fvg === true || g.orderBlock === true || g.freshFvg === true || g.freshOb === true;
 
   const lines = [
-    '🤖 *V TRADE AI — ADVANCED ICT SIGNAL*',
-    '',
+    '🤖 *V TRADE AI — ADVANCED ICT SIGNAL*','',
     icon + ' *XAUUSD — ' + type + '*',
     '💰 Price: *' + price + '*',
     '📈 Bias: *' + bias + '*',
@@ -74,48 +74,30 @@ function install() {
     '🧠 Confidence: *' + (Number.isFinite(confidence) ? Math.round(confidence) : 0) + '/100*'
   ];
 
-  if (authorized) {
-    lines.push('',
-      '🎯 Entry Zone: *' + zone + '*',
-      '🟢 Entry: *' + entry + '*',
-      '🛑 SL: *' + sl + '*',
-      '🎯 TP1: *' + tp1 + '*',
-      '🎯 TP2: *' + tp2 + '*',
-      '🎯 TP3: *' + tp3 + '*',
-      '📐 RR: *' + rr + '*',
-      '',
-      'MSS/BOS: *' + yes(mssOk) + '*',
-      'Liquidity: *' + yes(liqOk) + '*',
-      'FVG/OB: *' + yes(fvgObOk) + '*',
-      'MTF: *' + yes(mtfOk) + '*',
-      '',
-      '🔐 *ORDER AUTHORIZED — ALL REQUIRED GATES PASSED*'
-    );
-  } else {
-    lines.push('',
-      '🎯 Entry Zone: *WAIT*',
-      '🟢 Entry: *WAIT*',
-      '🛑 SL: *WAIT*',
-      '🎯 TP1: *WAIT*',
-      '🎯 TP2: *WAIT*',
-      '🎯 TP3: *WAIT*',
-      '📐 RR: *WAIT*',
-      '',
-      'MSS/BOS: *' + yes(mssOk) + '*',
-      'Liquidity: *' + yes(liqOk) + '*',
-      'FVG/OB: *' + yes(fvgObOk) + '*',
-      'MTF: *' + yes(mtfOk) + '*',
-      '',
-      '🛡️ *WAIT — NO ORDER AUTHORIZED*'
-    );
-  }
+  lines.push('',
+    '🎯 Entry Zone: *' + zone + '*',
+    '🟢 Entry: *' + entry + '*',
+    '🛑 SL: *' + sl + '*',
+    '🎯 TP1: *' + tp1 + '*',
+    '🎯 TP2: *' + tp2 + '*',
+    '🎯 TP3: *' + tp3 + '*',
+    '📐 RR: *' + rr + '*',
+    '',
+    'MSS: *' + yes(g.mss === true) + '*',
+    'BOS: *' + yes(g.bos === true) + '*',
+    'Liquidity: *' + yes(liqOk) + '*',
+    'FVG: *' + yes(g.fvg === true) + '*',
+    'OB: *' + yes(g.orderBlock === true) + '*',
+    'MTF: *' + yes(mtfOk) + '*',
+    '',
+    authorized ? '🔐 *ORDER AUTHORIZED — ALL REQUIRED GATES PASSED*' : '🛡️ *WAIT — NO ORDER AUTHORIZED*'
+  );
   return lines.join('\\n');
 }
 `;
-
   source = source.slice(0, start) + fn + source.slice(end);
   fs.writeFileSync(SERVER_FILE, source, 'utf8');
-  console.log('[V-TRADE TELEGRAM] final trade formatter V2 installed');
+  console.log('[V-TRADE TELEGRAM] final trade formatter V3 installed | fail-closed gates');
 }
 
 try { install(); } catch (e) {
