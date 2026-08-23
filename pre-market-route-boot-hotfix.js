@@ -1,9 +1,9 @@
-/* V-TRADE AI — Pre-Market route boot hotfix V10 */
+/* V-TRADE AI — Pre-Market route boot hotfix V11 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V10';
+const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V11';
 
 if(fs.existsSync(SERVER)){
   let source=fs.readFileSync(SERVER,'utf8');
@@ -35,8 +35,6 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
-  // Friday closed candles remain historical context. Monday execution is blocked
-  // until the authoritative MT5 M5 candle is from Monday and <=10 minutes old.
   try{
     const monday=require('./monday-fresh-candle-contract.js');
     source=monday.patch(source);
@@ -46,10 +44,21 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
+  // Formatter is installed earlier in the launcher. Patch its weekend state now
+  // so Sunday is Sunday in Asia/Phnom_Penh and Monday is not misclassified as UTC Sunday.
+  try{
+    const tgState=require('./sunday-monday-telegram-state-hotfix.js');
+    source=tgState.patch(source);
+    console.log('[V-TRADE TELEGRAM] Sunday/Monday market-state renderer aligned | Asia/Phnom_Penh');
+  }catch(e){
+    console.error('[V-TRADE TELEGRAM] Sunday/Monday state patch failed:',e.stack||e.message);
+    throw e;
+  }
+
   if(!source.includes(MARKER)){
     const anchor='const app = express();';
     if(!source.includes(anchor))throw new Error('server app marker not found');
-    const patch=`\n/* ${MARKER} */\n// Legacy Candle-Open compatibility engine intentionally disabled.\n// Authority V4 + Monday fresh-candle contract are canonical.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V10: authority + Monday freshness canonical');\n`;
+    const patch=`\n/* ${MARKER} */\n// Canonical authority + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V11: Sunday/Monday transition canonical');\n`;
     source=source.replace(anchor,anchor+patch);
   }
 
