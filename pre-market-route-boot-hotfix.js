@@ -1,14 +1,13 @@
-/* V-TRADE AI — Pre-Market route boot hotfix V9 */
+/* V-TRADE AI — Pre-Market route boot hotfix V10 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V9';
+const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V10';
 
 if(fs.existsSync(SERVER)){
   let source=fs.readFileSync(SERVER,'utf8');
 
-  // Remove legacy V8 boot block if it was previously injected.
   const legacy='/* VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V8 */';
   let start=source.indexOf(legacy);
   while(start>=0){
@@ -18,7 +17,6 @@ if(fs.existsSync(SERVER)){
     start=source.indexOf(legacy);
   }
 
-  // Keep the direct MT5-feed transport layer; it is not an analysis engine.
   try{
     const direct=require('./pre-market-direct-route-hotfix.js');
     source=direct.inject(source);
@@ -28,7 +26,6 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
-  // The V4 authority route is the only canonical pre-market processing engine.
   try{
     const authority=require('./pre-market-authority-route-hotfix.js');
     source=authority.inject(source);
@@ -38,16 +35,21 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
+  // Friday closed candles remain historical context. Monday execution is blocked
+  // until the authoritative MT5 M5 candle is from Monday and <=10 minutes old.
+  try{
+    const monday=require('./monday-fresh-candle-contract.js');
+    source=monday.patch(source);
+    console.log('[V-TRADE MONDAY] Friday context retained | fresh Monday M5 execution gate loaded');
+  }catch(e){
+    console.error('[V-TRADE MONDAY] fresh-candle contract failed:',e.stack||e.message);
+    throw e;
+  }
+
   if(!source.includes(MARKER)){
     const anchor='const app = express();';
     if(!source.includes(anchor))throw new Error('server app marker not found');
-    const patch=`
-/* ${MARKER} */
-// Legacy Candle-Open compatibility engine intentionally disabled.
-// /api/pre-market/mt5-authoritative, /api/pre-market/xauusd and
-// /api/pre-market/intelligence are all served by Authority V4.
-console.log('[V-TRADE PRE-MARKET] ROUTE BOOT V9: legacy processor disabled; authority is canonical');
-`;
+    const patch=`\n/* ${MARKER} */\n// Legacy Candle-Open compatibility engine intentionally disabled.\n// Authority V4 + Monday fresh-candle contract are canonical.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V10: authority + Monday freshness canonical');\n`;
     source=source.replace(anchor,anchor+patch);
   }
 
