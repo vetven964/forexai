@@ -1,4 +1,4 @@
-// V-TRADE AI — Sunday Weekly Pre-Open Telegram Outlook V2
+// V-TRADE AI — Sunday Weekly Pre-Open Telegram Outlook V3
 // Sunday-only weekly context report. Analysis-only; never authorizes orders.
 // Strong Long/Short requires real MTF readiness AND all ICT gates.
 'use strict';
@@ -15,10 +15,7 @@ const PORT = Number(process.env.PORT || 10000);
 const STATE = globalThis.__vtradeSundayPreopenState || (globalThis.__vtradeSundayPreopenState = { lastKey: '' });
 
 function parts(d) {
-  const f = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit', weekday:'short',
-    hour:'2-digit', minute:'2-digit', hour12:false
-  });
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false });
   return Object.fromEntries(f.formatToParts(d).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
 }
 function sundayKey(d) { const p = parts(d); return `${p.year}-${p.month}-${p.day}`; }
@@ -54,7 +51,6 @@ function classify(a) {
   const strength = Math.max(buy, sell);
   const gates = gateState(a);
   const allGates = Object.values(gates).every(Boolean);
-  // Never call a setup STRONG from score alone.
   const strong = strength >= 70 && allGates;
   return { buy, sell, bias, strength, strong, gates };
 }
@@ -71,7 +67,6 @@ function levels(a, side) {
   const sl = side === 'BUY' ? low - atr * 0.50 : high + atr * 0.50;
   const risk = Math.abs(entry - sl);
   if (!Number.isFinite(risk) || risk <= 0) return null;
-  // User-requested RR target: TP1=1R, TP2=2R, TP3=2.5R.
   const mult = [1, 2, 2.5];
   const tps = side === 'BUY' ? mult.map(x=>entry + risk*x) : mult.map(x=>entry - risk*x);
   return { low, high, entry, sl, tp1:tps[0], tp2:tps[1], tp3:tps[2], rr:2.5 };
@@ -81,9 +76,10 @@ function buildMessage(a) {
   const c = classify(a);
   const side = c.bias === 'BULLISH' ? 'BUY' : c.bias === 'BEARISH' ? 'SELL' : null;
   const lv = c.strong && side ? levels(a, side) : null;
-  const title = c.strong
-    ? (side === 'BUY' ? '🟢 UPTRADE STRONG LONG' : side === 'SELL' ? '🔴 DOWNTRADE STRONG SHORT' : '🟡 WAIT')
-    : (c.bias === 'BULLISH' ? '🟢 UPTRADE BULLISH' : c.bias === 'BEARISH' ? '🔴 DOWNTRADE BEARISH' : '🟡 WAIT');
+  // IMPORTANT: bias is NOT a trade. Only the fully-gated strong state gets a trade label.
+  const title = c.strong && lv
+    ? (side === 'BUY' ? '🟢 STRONG LONG' : side === 'SELL' ? '🔴 STRONG SHORT' : '🟡 WAIT')
+    : (c.bias === 'BULLISH' ? '🟡 BULLISH BIAS — WAIT' : c.bias === 'BEARISH' ? '🟡 BEARISH BIAS — WAIT' : '🟡 WAIT');
   const g = c.gates;
   const gateLine = [
     `MSS/BOS: ${g.mss && g.bos ? '✅' : '❌'}`,
@@ -101,32 +97,17 @@ function buildMessage(a) {
     `🔎 ${gateLine}`
   ];
   if (c.strong && lv) {
-    lines.push('', '🎯 *PRE-OPEN PLANNING LEVELS*',
-      `Entry Zone: *${fmt(lv.low)} — ${fmt(lv.high)}*`,
-      `SL: *${fmt(lv.sl)}*`,
-      `TP1: *${fmt(lv.tp1)}*`,
-      `TP2: *${fmt(lv.tp2)}*`,
-      `TP3: *${fmt(lv.tp3)}*`,
-      `RR: *1:${lv.rr.toFixed(1)}*`);
+    lines.push('', '🎯 *PRE-OPEN PLANNING LEVELS*', `Entry Zone: *${fmt(lv.low)} — ${fmt(lv.high)}*`, `SL: *${fmt(lv.sl)}*`, `TP1: *${fmt(lv.tp1)}*`, `TP2: *${fmt(lv.tp2)}*`, `TP3: *${fmt(lv.tp3)}*`, `RR: *1:${lv.rr.toFixed(1)}*`);
   } else {
-    lines.push('', '🎯 Entry Zone: *WAIT*', '🛑 SL: *WAIT*', '🎯 TP1: *WAIT*', '🎯 TP2: *WAIT*', '🎯 TP3: *WAIT*');
+    lines.push('', '🎯 Entry Zone: *WAIT*', '🛑 SL: *WAIT*', '🎯 TP1: *WAIT*', '🎯 TP2: *WAIT*', '🎯 TP3: *WAIT*', '🛡️ *NO ORDER AUTHORIZED*');
   }
-  lines.push('',
-    '⚠️ *Weekly pre-open outlook — analysis only; not an order authorization.*',
-    '🔐 Market Open must revalidate with Real MT5 before `UPTRADE NOW / DOWNTRADE NOW`.');
+  lines.push('', '⚠️ *Weekly pre-open outlook — analysis only; not an order authorization.*', '🔐 Market Open must revalidate with Real MT5 before `UPTRADE NOW / DOWNTRADE NOW`.');
   return lines.join('\n');
 }
 
 async function send(text) {
-  if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.warn('[SUNDAY PREOPEN] Telegram not configured — report skipped');
-    return false;
-  }
-  const r = await fetch(`https://api.telegram.org/bot${encodeURIComponent(TELEGRAM_TOKEN)}/sendMessage`, {
-    method:'POST', headers:{'content-type':'application/json'},
-    body:JSON.stringify({chat_id:TELEGRAM_CHAT_ID,text,parse_mode:'Markdown'}),
-    signal:AbortSignal.timeout(10000)
-  });
+  if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) { console.warn('[SUNDAY PREOPEN] Telegram not configured — report skipped'); return false; }
+  const r = await fetch(`https://api.telegram.org/bot${encodeURIComponent(TELEGRAM_TOKEN)}/sendMessage`, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({chat_id:TELEGRAM_CHAT_ID,text,parse_mode:'Markdown'}), signal:AbortSignal.timeout(10000) });
   const raw = await r.json().catch(()=>({ok:false}));
   if (!r.ok || !raw.ok) throw new Error(raw?.description || `Telegram HTTP ${r.status}`);
   return true;
@@ -136,8 +117,6 @@ async function run(now = new Date()) {
   if (!ENABLED || !isSunday(now)) return false;
   const key = sundayKey(now);
   if (STATE.lastKey === key) return false;
-  // Run at the configured time or any later minute on the same Sunday.
-  // This avoids missing the report if Render wakes/restarts a few seconds late.
   if (minuteOfDay(now) < scheduledMinute()) return false;
   const analysis = await getPreopen();
   const text = buildMessage(analysis);
