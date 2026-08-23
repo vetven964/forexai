@@ -1,6 +1,11 @@
-// V-TRADE AI — final Telegram formatter compatibility shim
-// The authoritative formatter is installed by ai-confirmation-runtime-v2.js.
-// This file intentionally does not rewrite server.js at runtime because doing
-// so can corrupt the active formatter/function boundaries and crash Node.
+// V-TRADE AI — final Telegram formatter apply hook
+// Loaded after the Local ICT runtime prepares server.js and before server.js
+// is finally required by server-launcher.js.
 'use strict';
-console.log('[V-TRADE TELEGRAM] final formatter compatibility shim active | no server rewrite');
+
+try {
+  require('./telegram-final-format-hotfix.js');
+  console.log('[V-TRADE TELEGRAM] final formatter V2 apply hook active');
+} catch (e) {
+  console.warn('[V-TRADE TELEGRAM] final formatter V2 skipped safely:', e.message);
+}
