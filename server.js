@@ -1887,7 +1887,19 @@ async function runTelegramAutoAlertScan() {
     }
     if (!r.ready) return;
 
-    const a = await buildXauAnalysis();
+    console.log(`[TELEGRAM AUTO] Scan start | ageSec=${r.ageSec} | M5=${r.frames.M5} M15=${r.frames.M15} H1=${r.frames.H1} H4=${r.frames.H4}`);
+
+    // Never let one slow/hung analysis block the 60s scanner forever.
+    const TELEGRAM_AUTO_ANALYSIS_TIMEOUT_MS = Math.max(
+      5000,
+      Number(process.env.TELEGRAM_AUTO_ANALYSIS_TIMEOUT_MS || 12000)
+    );
+    const analysisTimeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Telegram auto analysis timeout after ${TELEGRAM_AUTO_ANALYSIS_TIMEOUT_MS}ms`)),
+        TELEGRAM_AUTO_ANALYSIS_TIMEOUT_MS)
+    );
+    const a = await Promise.race([buildXauAnalysis(), analysisTimeout]);
+
     // Run the independent AI confirmation on every auto scan. The deterministic ICT/MTF engine
     // remains authoritative; AI can only confirm or veto an already-qualified BUY/SELL.
     const ai = OPENAI_ENABLED ? await openAIConfirmXauAnalysis(a) : {enabled:false,configured:!!OPENAI_API_KEY,model:OPENAI_MODEL,status:'disabled'};
@@ -1905,11 +1917,12 @@ async function runTelegramAutoAlertScan() {
 
     // State logging is also stable: score/status/price changes alone do not count as a new state.
     const stateKey=`${a.signal}:${a.bias || 'NEUTRAL'}:${a.confirmations?.allGatesPassed===true?'PASS':'WAIT'}`;
-    if (stateKey !== globalThis.__vtradeTelegramAutoLastState) {
-      if (sent) console.log(`[TELEGRAM AUTO] Alert sent | signal=${a.signal} | score=${a.directionScore ?? a.aiScore ?? '-'} | status=${a.status}`);
-      else console.log(`[TELEGRAM AUTO] Scan OK | signal=${a.signal} | bias=${a.bias} | score=${a.directionScore ?? a.aiScore ?? '-'} | status=${a.status} | gates=${a.confirmations?.allGatesPassed===true?'PASS':'WAIT'}`);
-      globalThis.__vtradeTelegramAutoLastState=stateKey;
+    if (sent) {
+      console.log(`[TELEGRAM AUTO] Alert sent | signal=${a.signal} | score=${a.directionScore ?? a.aiScore ?? '-'} | status=${a.status}`);
+    } else {
+      console.log(`[TELEGRAM AUTO] Scan OK | signal=${a.signal} | bias=${a.bias} | score=${a.directionScore ?? a.aiScore ?? '-'} | status=${a.status} | gates=${a.confirmations?.allGatesPassed===true?'PASS':'WAIT'} | sent=false`);
     }
+    globalThis.__vtradeTelegramAutoLastState=stateKey;
   } catch (e) {
   // Fail closed: never manufacture an alert. Log the exact readiness/analysis reason.
   const msg = String(e?.message || e);
