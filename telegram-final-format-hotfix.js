@@ -8,6 +8,10 @@ const Module = require('module');
 const path = require('path');
 const SERVER_FILE = path.resolve(__dirname, 'server.js');
 
+// Display-only switch. Nothing is deleted from the analysis contract;
+// secondary details are simply hidden from the normal Telegram card.
+const SHOW_OPTIONAL_DETAILS = false;
+
 function num(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(2) : 'WAIT';
@@ -19,8 +23,6 @@ function yn(v) { return v ? '✅' : '❌'; }
 
 function telegramWaitText(a) {
   a = a || {};
-  // Some runtime paths wrap the canonical analysis under data/result/analysis/preMarket.
-  // Normalize those containers only for display; execution authorization remains fail-closed.
   const src = a.analysis || a.data || a.result || a.preMarket || a;
   const signal = String(src.signal || src.action || a.signal || a.action || 'WAIT').toUpperCase();
   const bias = String(src.bias || src.directionBand || a.bias || a.directionBand || 'NEUTRAL').toUpperCase();
@@ -75,17 +77,23 @@ function telegramWaitText(a) {
   const tp2 = authorized ? num(src.tp2 != null ? src.tp2 : tp[1]) : 'WAIT';
   const tp3 = authorized ? num(src.tp3 != null ? src.tp3 : tp[2]) : 'WAIT';
 
-  return [
+  // Keep all values above in the canonical contract. Only the presentation is hidden.
+  const lines = [
     '🤖 *V TRADE AI — XAUUSD*',
     '💰 Price: *' + price + '* | 📈 ' + bias,
     '⚡ *' + action + '* | Score ' + (Number.isFinite(score) ? Math.round(score) : 0) + '/100 | Conf ' + (Number.isFinite(confidence) ? Math.round(confidence) : 0) + '/100',
     '🔎 ICT: MSS ' + yn(mss) + ' | LIQ ' + yn(liq) + ' | FVG ' + yn(fvg) + ' | OB ' + yn(ob) + ' | MTF ' + yn(mtf),
     '🎯 Zone: *' + zone + '* | Entry: *' + entry + '* | SL: *' + sl + '*',
     '🎯 TP1: *' + tp1 + '* | TP2: *' + tp2 + '* | TP3: *' + tp3 + '*',
-    '🤖 AI: *' + aiDecision + '* | ' + (Number.isFinite(aiConfidence) ? Math.round(aiConfidence) : 0) + '/100 | ' + agreement,
-    authorized ? '🔐 *ORDER AUTHORIZED*' : '🛡️ *WAIT — NO ORDER AUTHORIZED*',
-    '🏦 ' + broker + ' | Quote ' + (Number.isFinite(age) ? age : 0) + 's'
-  ].join('\n');
+    '🛡️ ' + (authorized ? '*ORDER AUTHORIZED*' : '*WAIT — NO ORDER AUTHORIZED*')
+  ];
+
+  // Optional technical details remain available to the formatter without being shown.
+  if (SHOW_OPTIONAL_DETAILS) {
+    lines.push('🤖 AI: *' + aiDecision + '* | ' + (Number.isFinite(aiConfidence) ? Math.round(aiConfidence) : 0) + '/100 | ' + agreement);
+    lines.push('🏦 ' + broker + ' | Quote ' + (Number.isFinite(age) ? age : 0) + 's');
+  }
+  return lines.join('\n');
 }
 
 const previousLoader = Module._extensions['.js'];
@@ -109,4 +117,4 @@ if (previousLoader && !previousLoader.__vtradeCompactEnforced) {
 }
 
 module.exports = { telegramWaitText };
-console.log('[V-TRADE TELEGRAM] canonical COMPACT renderer enforced | legacy long WAIT renderer blocked');
+console.log('[V-TRADE TELEGRAM] canonical COMPACT renderer enforced | legacy long WAIT renderer blocked | optional details hidden');
