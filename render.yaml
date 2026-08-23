@@ -4,8 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install
-    # One production entrypoint: hard-disable legacy CORE Telegram, boot CORE,
-    # and run Telegram AI as an independent child process.
+    # One production entrypoint; runtime lock installs the canonical Telegram renderer first.
     startCommand: node --require ./vtrade-runtime-env-lock.js vtrade-enhanced-launcher.js
     healthCheckPath: /health
     envVars:
@@ -62,9 +61,9 @@ services:
       - key: TELEGRAM_MIN_SCORE
         value: "76"
       - key: TELEGRAM_AUTO_ALERT_ENABLED
-        value: "false"
+        value: "true"
       - key: TELEGRAM_AUTO_ALERT_INTERVAL_MS
-        value: "0"
+        value: "60000"
       - key: TELEGRAM_WAIT_ALERT_COOLDOWN_MS
         value: "900000"
       - key: NEWS_FAIL_CLOSED
