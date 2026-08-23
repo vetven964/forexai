@@ -1848,10 +1848,10 @@ async function maybeTelegramAlert(a, tg, sessionId) {
   return sent;
 }
 
-let telegramAutoLastReadinessLog = '';
-let telegramAutoLastState = '';
-let telegramAutoLastWaitKey = '';
-let telegramAutoLastWaitSentAt = 0;
+globalThis.__vtradeTelegramAutoLastReadinessLog = String(globalThis.__vtradeTelegramAutoLastReadinessLog || '');
+globalThis.__vtradeTelegramAutoLastState = String(globalThis.__vtradeTelegramAutoLastState || '');
+globalThis.__vtradeTelegramAutoLastWaitKey = String(globalThis.__vtradeTelegramAutoLastWaitKey || '');
+globalThis.__vtradeTelegramAutoLastWaitSentAt = Number(globalThis.__vtradeTelegramAutoLastWaitSentAt || 0);
 const TELEGRAM_WAIT_ALERT_COOLDOWN_MS = Math.max(
   60000,
   Number(process.env.TELEGRAM_WAIT_ALERT_COOLDOWN_MS || 15 * 60 * 1000)
@@ -1877,13 +1877,13 @@ async function runTelegramAutoAlertScan() {
   try {
     const r=telegramAutoReadinessSnapshot();
     const readinessKey=`${r.ready?'READY':'NOT_READY'}:${r.connected?'CONNECTED':'DISCONNECTED'}:${r.frames.M5}:${r.frames.M15}:${r.frames.H1}:${r.frames.H4}`;
-    if (readinessKey !== telegramAutoLastReadinessLog) {
+    if (readinessKey !== globalThis.__vtradeTelegramAutoLastReadinessLog) {
       if (r.ready) {
         console.log(`[TELEGRAM AUTO] MT5 READY | ageSec=${r.ageSec} | M5=${r.frames.M5} M15=${r.frames.M15} H1=${r.frames.H1} H4=${r.frames.H4}`);
       } else {
         console.warn(`[TELEGRAM AUTO] Waiting for MT5 MTF | connected=${r.connected} ageSec=${r.ageSec===null?'null':r.ageSec} | M5=${r.frames.M5} M15=${r.frames.M15} H1=${r.frames.H1} H4=${r.frames.H4}`);
       }
-      telegramAutoLastReadinessLog=readinessKey;
+      globalThis.__vtradeTelegramAutoLastReadinessLog=readinessKey;
     }
     if (!r.ready) return;
 
@@ -1905,17 +1905,17 @@ async function runTelegramAutoAlertScan() {
 
     // State logging is also stable: score/status/price changes alone do not count as a new state.
     const stateKey=`${a.signal}:${a.bias || 'NEUTRAL'}:${a.confirmations?.allGatesPassed===true?'PASS':'WAIT'}`;
-    if (stateKey !== telegramAutoLastState) {
+    if (stateKey !== globalThis.__vtradeTelegramAutoLastState) {
       if (sent) console.log(`[TELEGRAM AUTO] Alert sent | signal=${a.signal} | score=${a.directionScore ?? a.aiScore ?? '-'} | status=${a.status}`);
       else console.log(`[TELEGRAM AUTO] Scan OK | signal=${a.signal} | bias=${a.bias} | score=${a.directionScore ?? a.aiScore ?? '-'} | status=${a.status} | gates=${a.confirmations?.allGatesPassed===true?'PASS':'WAIT'}`);
-      telegramAutoLastState=stateKey;
+      globalThis.__vtradeTelegramAutoLastState=stateKey;
     }
   } catch (e) {
   // Fail closed: never manufacture an alert. Log the exact readiness/analysis reason.
   const msg = String(e?.message || e);
 
   console.warn('[TELEGRAM AUTO] Scan blocked:', msg);
-  telegramAutoLastState = msg;
+  globalThis.__vtradeTelegramAutoLastState = msg;
 } finally {
   telegramAutoAlertRunning = false;
 }
