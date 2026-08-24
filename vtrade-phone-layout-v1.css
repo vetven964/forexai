@@ -1,0 +1,25 @@
+/* V TRADE AI — PHONE LAYOUT V1
+ * PHONE ONLY. No desktop/trading-engine changes.
+ */
+@media (max-width:900px){
+  #vtradePreMarket{padding-bottom:180px!important;overflow:visible!important}
+  #vtradePreMarket .v91{overflow:visible!important}
+  #vtradePreMarket .v91h{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:10px!important}
+  #vtradePhoneTfHost{order:2!important;width:100%!important;max-width:100%!important;display:flex!important;gap:8px!important;align-items:center!important;margin:0!important;box-sizing:border-box!important}
+  #vtradePhoneTfHost .vtrade-phone-tf-select{height:52px!important;flex:1 1 auto!important;min-width:0!important;font-size:16px!important;border-radius:14px!important}
+  #vtradePhoneTfHost .vtrade-phone-tf-button{height:52px!important;flex:0 0 42%!important;width:42%!important;font-size:16px!important;border-radius:14px!important}
+  #vtradePreMarket .v91g{grid-template-columns:1fr!important}
+  #vtradePreMarket .v91metrics{grid-template-columns:1fr 1fr!important}
+  #vtradePreMarket .v91gates{grid-template-columns:1fr 1fr!important}
+  #vtradePreMarket .v91tf{display:grid!important;grid-template-columns:52px minmax(0,1fr)!important;grid-template-rows:auto auto!important;gap:7px 10px!important;min-height:112px!important;padding:12px!important;box-sizing:border-box!important}
+  #vtradePreMarket .v91tf>strong{grid-column:1!important;grid-row:1!important;font-size:17px!important;align-self:start!important}
+  #vtradePreMarket .v91tf>div{grid-column:2!important;grid-row:1!important;min-width:0!important}
+  #vtradePreMarket .v91tf>span:nth-of-type(1){grid-column:1!important;grid-row:2!important;font-weight:800!important;font-size:12px!important}
+  #vtradePreMarket .v91tf>span:nth-of-type(2){grid-column:2!important;grid-row:2!important;text-align:right!important;font-size:12px!important;line-height:1.5!important}
+  #vtradePreMarket .v91tf .bar{margin-top:0!important;height:7px!important}
+  #vtradePreMarket .v91tf .v91m{margin-top:5px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  #vtradePhoneSelectedTF{margin:0 0 10px!important;padding:10px!important;border-radius:12px!important;font-size:11px!important}
+  #vtradePhoneLang{top:max(12px,env(safe-area-inset-top))!important;right:10px!important;z-index:60000!important}
+  #vtradeMobileBar{z-index:55000!important}
+}
+@media (min-width:901px){#vtradePhoneLayoutV1{display:none!important}}
