@@ -54,8 +54,6 @@ function telegramWaitText(a) {
   const ob = !blocked(/No fresh aligned FVG\/OB/i) &&
     (confirmed(g.orderBlock) || confirmed(g.orderBlockOk) || confirmed(g.obOk) || confirmed(ict.orderBlock?.confirmed));
 
-  // A trade card is shown as BUY/SELL only when the server itself has
-  // authorized the trade and the required ICT gates are valid.
   const authorized = src.tradeAuthorized === true &&
     (signal === 'BUY' || signal === 'SELL') && mtf && mss && liq && (fvg || ob);
 
@@ -67,10 +65,21 @@ function telegramWaitText(a) {
   const sl = authorized ? num(src.stopLoss != null ? src.stopLoss : (src.sl != null ? src.sl : a.stopLoss)) : '';
   const tp = Array.isArray(src.takeProfit) ? src.takeProfit : (Array.isArray(src.tp) ? src.tp : (Array.isArray(a.takeProfit) ? a.takeProfit : []));
   const tp1 = authorized ? num(src.tp1 != null ? src.tp1 : tp[0]) : '';
+  const tp2 = authorized ? num(src.tp2 != null ? src.tp2 : tp[1]) : '';
+  const tp3 = authorized ? num(src.tp3 != null ? src.tp3 : tp[2]) : '';
 
-  // Telegram intentionally shows only the essential card. ICT gate details,
-  // TP2/TP3, AI confirmation, broker, quote age and diagnostic reasons remain
-  // available in the backend/runtime contract and are not deleted.
+  const z = src.entryZone || src.executionZone || src.candidateZone || src.referenceZone || src.zone ||
+    a.entryZone || a.executionZone || a.zone || {};
+  const zone = authorized && Number.isFinite(Number(z.low)) && Number.isFinite(Number(z.high))
+    ? num(z.low) + '–' + num(z.high)
+    : '';
+
+  const tfOrder = ['M5','M15','H1','H4','D1'];
+  const tfText = tfOrder.filter(tf => {
+    const r = rows[tf] || rows[tf.toLowerCase()] || {};
+    return tfReady(tf) || r.confirmed === true || r.aligned === true;
+  }).join(' / ') || 'M5';
+
   const lines = [
     '🤖 *V TRADE AI — XAUUSD*',
     '',
@@ -78,10 +87,13 @@ function telegramWaitText(a) {
     '💰 Price: ' + (price || 'WAIT'),
     '📈 ' + bias + ' | Score ' + (Number.isFinite(score) ? Math.round(score) : 0) + ' | Conf ' + (Number.isFinite(confidence) ? Math.round(confidence) : 0),
     '',
-    '⏱️ TF: M5',
+    '⏱️ TF: ' + tfText,
+    '📍 Zone: ' + zone,
     '🎯 Entry: ' + entry,
     '🛑 SL: ' + sl,
-    '🎯 TP1: ' + tp1
+    '🎯 TP1: ' + tp1,
+    '🎯 TP2: ' + tp2,
+    '🎯 TP3: ' + tp3
   ];
   return lines.join('\n');
 }
