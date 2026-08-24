@@ -1,11 +1,11 @@
-// V-TRADE AI — Telegram compact signal formatter V6.1
+// V-TRADE AI — Telegram compact signal formatter V6.2
 // Presentation-only: ICT gates and authorization logic remain unchanged.
 'use strict';
 const fs=require('fs');
 const path=require('path');
 
 const TARGET=path.resolve(__dirname,'telegram-bot-ai-service.js');
-const MARKER='VTRADE_TELEGRAM_COMPACT_FORMAT_V6_1';
+const MARKER='VTRADE_TELEGRAM_COMPACT_FORMAT_V6_2';
 
 function patch(){
   if(!fs.existsSync(TARGET))throw new Error('telegram-bot-ai-service.js not found');
@@ -20,13 +20,13 @@ function patch(){
     '  // '+MARKER,
     "  const side=a.signal==='BUY'?'🟢 BUY':a.signal==='SELL'?'🔴 SELL':'🟡 WAIT';",
     '  const tp=a.takeProfit||[];',
-    '  const fmt=v=>v==null||!Number.isFinite(Number(v))?\'WAIT\':Number(v).toFixed(2);',
+    "  const fmt=v=>v==null||!Number.isFinite(Number(v))?'WAIT':Number(v).toFixed(2);",
     '  const isAuth=a.tradeAuthorized===true;',
     "  const reason=isAuth?'Setup confirmed':'Setup incomplete';",
     '  const lines=[',
     "    '🤖 *V TRADE AI — XAUUSD*',",
     "    '💰 '+fmt(a.price)+' | *'+side+'*',",
-    "    '📈 *'+String(a.bias||'NEUTRAL')+'* | Score *'+fmt(a.directionScore)+'/100* | Conf *'+fmt(a.confidence)+'/100*',",
+    "    '📈 *'+String(a.bias||'NEUTRAL')+'* | Score *'+Math.round(Number(a.directionScore)||0)+'/100* | Conf *'+Math.round(Number(a.confidence)||0)+'/100*',",
     "    '⏱️ *'+String(a.transition||'LIVE MARKET').replaceAll('_',' ')+'*',",
     "    '🔎 ICT *'+(a.gateCount||'0/10')+'*',",
     "    '🎯 Entry *'+(isAuth?fmt(a.entry):'WAIT')+'* | SL *'+(isAuth?fmt(a.stopLoss):'WAIT')+'*',",
@@ -41,6 +41,6 @@ function patch(){
 
   source=source.slice(0,start)+replacement+source.slice(end);
   fs.writeFileSync(TARGET,source,'utf8');
-  console.log('[V-TRADE TELEGRAM] compact formatter V6.1 installed');
+  console.log('[V-TRADE TELEGRAM] compact formatter V6.2 installed');
 }
-try{patch();}catch(e){console.error('[V-TRADE TELEGRAM] compact formatter V6.1 failed:',e.stack||e.message);throw e;}
+try{patch();}catch(e){console.error('[V-TRADE TELEGRAM] compact formatter V6.2 failed:',e.stack||e.message);throw e;}
