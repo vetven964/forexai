@@ -5,19 +5,29 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050912">
 <title>V TRADE AI — Phone Terminal</title>
-<style>html,body{margin:0;width:100%;min-height:100%;background:#04070d}*{box-sizing:border-box}</style>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04070d}#phoneFrame{display:block;width:100%;height:100dvh;min-height:100%;border:0;background:#04070d}</style>
 </head>
 <body>
+<iframe id="phoneFrame" src="premium-dashboard-live.html?phone=1&mobile-shell=phone-all&header-fix=20260824&phone-i18n=v3&phone-pre-market=all&phone-telegram=all" title="V TRADE AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
 <script>
 'use strict';
-// PHONE ENTRY ONLY: use the real Premium Terminal directly.
-// No iframe, no second DOM, no outer translation layer.
-// This prevents missing modules, duplicated mobile shells and stale iframe state.
 (function(){
-  var q='?phone=1&mobile-shell=direct3&phone-ui=20260824';
-  location.replace('premium-dashboard-live.html'+q);
+  const frame=document.getElementById('phoneFrame');
+  const add=(doc,id,src)=>{
+    if(!doc||!doc.head||doc.getElementById(id))return;
+    const s=doc.createElement('script');s.id=id;s.src=src;s.async=false;doc.head.appendChild(s);
+  };
+  const inject=()=>{
+    try{
+      const doc=frame.contentDocument;
+      if(!doc||!doc.head)return;
+      // Phone-only controls: timeframe M5/M15/H1/H4/D1 + Analyze AI + Khmer/English.
+      add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v13');
+    }catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}
+  };
+  frame.addEventListener('load',inject,{passive:true});
+  if(frame.contentDocument?.readyState==='complete')inject();
 })();
 </script>
-<noscript>Please enable JavaScript to open V TRADE AI Phone Terminal.</noscript>
 </body>
 </html>
