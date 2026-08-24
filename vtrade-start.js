@@ -68,6 +68,7 @@ patchFile(DASHBOARD, source => {
 });
 
 if (fs.existsSync(path.join(ROOT, 'premarket-ui-truth-hotfix.js'))) require('./premarket-ui-truth-hotfix.js');
+if (fs.existsSync(path.join(ROOT, 'premarket-selector-hotfix.js'))) require('./premarket-selector-hotfix.js');
 
 console.log('[VTRADE START] Pre-Market AI core ready | Telegram isolated');
 require('./vtrade-logic-ui-hotfix.js');
