@@ -16,9 +16,9 @@ table{max-width:100%}
 .v-fluid-card{min-width:0}
 .v-scroll-x{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
 .v-safe{padding-left:max(var(--v-gutter),env(safe-area-inset-left));padding-right:max(var(--v-gutter),env(safe-area-inset-right))}
-@media (max-width: 900px){.v-desktop-only{display:none!important}.v-mobile-only{display:block!important}}
-@media (min-width: 901px){.v-mobile-only{display:none!important}}
-@media (max-width: 600px){
+@media (max-width:900px){.v-desktop-only{display:none!important}.v-mobile-only{display:block!important}}
+@media (min-width:901px){.v-mobile-only{display:none!important}}
+@media (max-width:600px){
   :root{--v-gutter:12px;--v-gap:10px}
   .content,.wrap,.shell{width:100%;max-width:100%;padding-left:var(--v-gutter)!important;padding-right:var(--v-gutter)!important}
   .grid,.cards,.stats,.packages,.quick,.radar,.gategrid,.mainrow{grid-template-columns:1fr!important}
@@ -27,7 +27,7 @@ table{max-width:100%}
   .price{font-size:clamp(22px,7vw,30px)!important}
   .card,.panel,.box{min-width:0;max-width:100%}
 }
-@media (max-width: 380px){:root{--v-gutter:9px}body{font-size:13px}}
+@media (max-width:380px){:root{--v-gutter:9px}body{font-size:13px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 /* PHONE TERMINAL — one shell, drawer hidden by default */
@@ -172,3 +172,42 @@ table{max-width:100%}
 }
 
 /* Desktop/PC intentionally unchanged. */
+
+/* PHONE-ONLY MTF CARDS: keep all five timeframes visible and stacked. */
+@media (max-width:900px){
+  #vtradePreMarket .radar,
+  #vtradePreMarket .mtf-grid,
+  #vtradePreMarket [data-mtf-grid]{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:10px!important;
+    width:100%!important;
+    max-width:100%!important;
+    overflow:visible!important;
+  }
+  #vtradePreMarket .radar > *,
+  #vtradePreMarket .mtf-grid > *,
+  #vtradePreMarket [data-mtf-grid] > *{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    box-sizing:border-box!important;
+  }
+  #vtradePreMarket .tf{
+    width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  #vtradePreMarket .tf-head{min-width:0!important;gap:8px!important;flex-wrap:wrap!important}
+  #vtradePreMarket .tf .kv{min-width:0!important;flex-wrap:wrap!important}
+  #vtradePreMarket .tf .bar{width:100%!important;max-width:100%!important}
+  #vtradePreMarket .tf .big,
+  #vtradePreMarket .tf .huge{overflow-wrap:anywhere!important}
+}
+
+/* Do not convert the five MTF cards into a dropdown on phone. */
+@media (max-width:900px){
+  #vtradePreMarket select[data-mtf-selector],
+  #vtradePreMarket .mtf-dropdown,
+  #vtradePreMarket #vtradePhoneTfHost{display:none!important}
+}
