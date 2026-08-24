@@ -27,6 +27,12 @@ if (typeof globalThis.__vtradeTelegramAutoReadinessLog === 'undefined') globalTh
 
 console.log(`[V-TRADE TELEGRAM ENV] canonical credential handoff | token=${__telegramToken ? 'PRESENT' : 'MISSING'} | chat=${__telegramChatId ? 'PRESENT' : 'MISSING'} | coreScanner=false`);
 
+// Direction/zone truth must be loaded before server-launcher installs its JS loader.
+try { require('./vtrade-direction-zone-truth-hotfix.js'); } catch (e) {
+  console.error('[V-TRADE DIRECTION] truth hotfix preload failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
+
 try { require('./vtrade-canonical-data-contract.js'); } catch (e) {
   console.error('[V-TRADE DATA CONTRACT] preload failed:', e.stack || e.message);
   process.exitCode = 1;
