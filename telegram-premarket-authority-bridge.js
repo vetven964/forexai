@@ -6,15 +6,16 @@
 const fs = require('fs');
 const path = require('path');
 const SERVER = path.join(__dirname, 'server.js');
-const MARKER = 'VTRADE_TELEGRAM_PREMARKET_AUTHORITY_BRIDGE_V1';
+const MARKER = 'VTRADE_TELEGRAM_PREMARKET_AUTHORITY_BRIDGE_V2';
 
 function inject(source) {
-  if (!source || source.includes(MARKER)) return source;
+  if (!source) return source;
   const needle = 'async function runTelegramAutoAlertScan() {';
   if (!source.includes(needle)) {
     console.warn('[V-TRADE TELEGRAM] authority bridge: scanner function not found; delivery guard remains fail-closed');
     return source;
   }
+  if (source.includes(MARKER)) return source;
   const bridge = `
 // ${MARKER}
 async function vtradeLoadPreMarketAuthority() {
@@ -33,7 +34,9 @@ async function vtradeLoadPreMarketAuthority() {
   }
 }
 `;
-  const call = "async function runTelegramAutoAlertScan() {\n  const preMarketAuthority = await vtradeLoadPreMarketAuthority();\n  if (!preMarketAuthority?.success) console.warn('[TELEGRAM AUTO] scanner continues for diagnostics; delivery remains blocked');";
+  // Expose the real scanner for continuity diagnostics only. The guard does not
+  // invoke it, so the production interval cannot create duplicate scans/delivery.
+  const call = "async function runTelegramAutoAlertScan() {\\n  globalThis.vtradeRunTelegramScan = runTelegramAutoAlertScan;\\n  globalThis.__vtradeTelegramScannerExposed = true;\\n  const preMarketAuthority = await vtradeLoadPreMarketAuthority();\\n  if (!preMarketAuthority?.success) console.warn('[TELEGRAM AUTO] scanner continues for diagnostics; delivery remains blocked');";
   return source.replace(needle, bridge + '\n' + call);
 }
 
@@ -43,7 +46,7 @@ try {
     const after = inject(before);
     if (after !== before) {
       fs.writeFileSync(SERVER, after, 'utf8');
-      console.log('[V-TRADE TELEGRAM] Pre-Market authority bridge V1 installed');
+      console.log('[V-TRADE TELEGRAM] Pre-Market authority bridge V2 installed');
     }
   }
 } catch (e) {
