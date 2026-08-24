@@ -1,6 +1,6 @@
 // V-TRADE AI — canonical Telegram COMPACT renderer
-// Runtime enforcer: prevents server-launcher legacy WAIT renderer from
-// replacing the compact message with the old long format.
+// Presentation-only: keep the full analysis contract, but show only the
+// essential execution card. Never force BUY/SELL when ICT gates are not ready.
 'use strict';
 
 const fs = require('fs');
@@ -8,18 +8,13 @@ const Module = require('module');
 const path = require('path');
 const SERVER_FILE = path.resolve(__dirname, 'server.js');
 
-// Display-only switch. Nothing is deleted from the analysis contract;
-// secondary details are simply hidden from the normal Telegram card.
-const SHOW_OPTIONAL_DETAILS = false;
-
 function num(v) {
   const n = Number(v);
-  return Number.isFinite(n) ? n.toFixed(2) : 'WAIT';
+  return Number.isFinite(n) ? n.toFixed(2) : '';
 }
 function confirmed(v) {
   return v === true || v === 1 || String(v).toLowerCase() === 'true' || String(v).toUpperCase() === 'PASS';
 }
-function yn(v) { return v ? '✅' : '❌'; }
 
 function telegramWaitText(a) {
   a = a || {};
@@ -58,41 +53,36 @@ function telegramWaitText(a) {
     (confirmed(g.fvg) || confirmed(g.fvgOk) || confirmed(ict.fvg?.confirmed));
   const ob = !blocked(/No fresh aligned FVG\/OB/i) &&
     (confirmed(g.orderBlock) || confirmed(g.orderBlockOk) || confirmed(g.obOk) || confirmed(ict.orderBlock?.confirmed));
-  const authorized = src.tradeAuthorized === true && (signal === 'BUY' || signal === 'SELL') && mtf && mss && liq && (fvg || ob);
-  const action = authorized
-    ? (signal === 'BUY' ? '🟢 BUY — AUTHORIZED' : '🔴 SELL — AUTHORIZED')
-    : (bias === 'BULLISH' ? '🟡 WAIT — BUY BIAS' : bias === 'BEARISH' ? '🟡 WAIT — SELL BIAS' : '🟡 WAIT');
-  const ai = src.aiConfirmation || src.ai || a.aiConfirmation || a.ai || {};
-  const aiDecision = String(ai.decision || src.aiDecision || a.aiDecision || 'WAIT').toUpperCase();
-  const aiConfidence = Number(ai.confidence != null ? ai.confidence : (src.aiConfidence != null ? src.aiConfidence : (a.aiConfidence != null ? a.aiConfidence : 0)));
-  const agreement = String(ai.agreement || src.aiAgreement || a.aiAgreement || 'NEUTRAL').toUpperCase();
-  const broker = String(src.broker || a.broker || 'VT Markets MT5');
-  const age = Number(src.quoteAge != null ? src.quoteAge : (src.feedAgeSec != null ? src.feedAgeSec : (a.quoteAge != null ? a.quoteAge : (a.feedAgeSec != null ? a.feedAgeSec : 0))));
-  const z = src.entryZone || src.executionZone || src.candidateZone || src.referenceZone || src.zone || a.entryZone || a.executionZone || a.zone || {};
-  const zone = Number.isFinite(Number(z.low)) && Number.isFinite(Number(z.high)) ? num(z.low) + '–' + num(z.high) : 'WAIT';
-  const entry = authorized ? num(src.entry != null ? src.entry : (src.entryPrice != null ? src.entryPrice : a.entry)) : 'WAIT';
-  const sl = authorized ? num(src.stopLoss != null ? src.stopLoss : (src.sl != null ? src.sl : a.stopLoss)) : 'WAIT';
-  const tp = Array.isArray(src.takeProfit) ? src.takeProfit : (Array.isArray(src.tp) ? src.tp : (Array.isArray(a.takeProfit) ? a.takeProfit : []));
-  const tp1 = authorized ? num(src.tp1 != null ? src.tp1 : tp[0]) : 'WAIT';
-  const tp2 = authorized ? num(src.tp2 != null ? src.tp2 : tp[1]) : 'WAIT';
-  const tp3 = authorized ? num(src.tp3 != null ? src.tp3 : tp[2]) : 'WAIT';
 
-  // Keep all values above in the canonical contract. Only the presentation is hidden.
+  // A trade card is shown as BUY/SELL only when the server itself has
+  // authorized the trade and the required ICT gates are valid.
+  const authorized = src.tradeAuthorized === true &&
+    (signal === 'BUY' || signal === 'SELL') && mtf && mss && liq && (fvg || ob);
+
+  const action = authorized
+    ? (signal === 'BUY' ? '🟢 BUY' : '🔴 SELL')
+    : (bias === 'BULLISH' ? '🟡 BUY BIAS' : bias === 'BEARISH' ? '🟡 SELL BIAS' : '🟡 WAIT');
+
+  const entry = authorized ? num(src.entry != null ? src.entry : (src.entryPrice != null ? src.entryPrice : a.entry)) : '';
+  const sl = authorized ? num(src.stopLoss != null ? src.stopLoss : (src.sl != null ? src.sl : a.stopLoss)) : '';
+  const tp = Array.isArray(src.takeProfit) ? src.takeProfit : (Array.isArray(src.tp) ? src.tp : (Array.isArray(a.takeProfit) ? a.takeProfit : []));
+  const tp1 = authorized ? num(src.tp1 != null ? src.tp1 : tp[0]) : '';
+
+  // Telegram intentionally shows only the essential card. ICT gate details,
+  // TP2/TP3, AI confirmation, broker, quote age and diagnostic reasons remain
+  // available in the backend/runtime contract and are not deleted.
   const lines = [
     '🤖 *V TRADE AI — XAUUSD*',
-    '💰 Price: *' + price + '* | 📈 ' + bias,
-    '⚡ *' + action + '* | Score ' + (Number.isFinite(score) ? Math.round(score) : 0) + '/100 | Conf ' + (Number.isFinite(confidence) ? Math.round(confidence) : 0) + '/100',
-    '🔎 ICT: MSS ' + yn(mss) + ' | LIQ ' + yn(liq) + ' | FVG ' + yn(fvg) + ' | OB ' + yn(ob) + ' | MTF ' + yn(mtf),
-    '🎯 Zone: *' + zone + '* | Entry: *' + entry + '* | SL: *' + sl + '*',
-    '🎯 TP1: *' + tp1 + '* | TP2: *' + tp2 + '* | TP3: *' + tp3 + '*',
-    '🛡️ ' + (authorized ? '*ORDER AUTHORIZED*' : '*WAIT — NO ORDER AUTHORIZED*')
+    '',
+    action,
+    '💰 Price: ' + (price || 'WAIT'),
+    '📈 ' + bias + ' | Score ' + (Number.isFinite(score) ? Math.round(score) : 0) + ' | Conf ' + (Number.isFinite(confidence) ? Math.round(confidence) : 0),
+    '',
+    '⏱️ TF: M5',
+    '🎯 Entry: ' + entry,
+    '🛑 SL: ' + sl,
+    '🎯 TP1: ' + tp1
   ];
-
-  // Optional technical details remain available to the formatter without being shown.
-  if (SHOW_OPTIONAL_DETAILS) {
-    lines.push('🤖 AI: *' + aiDecision + '* | ' + (Number.isFinite(aiConfidence) ? Math.round(aiConfidence) : 0) + '/100 | ' + agreement);
-    lines.push('🏦 ' + broker + ' | Quote ' + (Number.isFinite(age) ? age : 0) + 's');
-  }
   return lines.join('\n');
 }
 
@@ -117,4 +107,4 @@ if (previousLoader && !previousLoader.__vtradeCompactEnforced) {
 }
 
 module.exports = { telegramWaitText };
-console.log('[V-TRADE TELEGRAM] canonical COMPACT renderer enforced | legacy long WAIT renderer blocked | optional details hidden');
+console.log('[V-TRADE TELEGRAM] canonical execution card enforced | BUY/SELL only when authorized | WAIT remains neutral');
