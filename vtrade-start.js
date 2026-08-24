@@ -7,6 +7,7 @@ const PREMARKET = path.join(ROOT, 'terminal-pre-market.js');
 const MARK = 'VTRADE_PHONE_AND_TELEGRAM_TRUTH_FIX_V2';
 const AI_BUTTON = 'vtrade-ai-button-hotfix.js';
 const AI_SAFE = path.join(ROOT, 'pre-market-ai-safe-hotfix.js');
+const ZH_LANG = 'vtrade-language-zh.js';
 
 function patchFile(file, transform) {
   let source = fs.readFileSync(file, 'utf8');
@@ -67,10 +68,20 @@ patchFile(DASHBOARD, source => {
   return source.replace(anchor, anchor + `\n${tag}`);
 });
 
+// Chinese UI is opt-in and shared by PC + phone. It is loaded after the
+// responsive shell so the language switcher can remain visible on all layouts.
+patchFile(DASHBOARD, source => {
+  const tag = `  <script src="${ZH_LANG}?v=20260824-zh-v1"></script>`;
+  if (source.includes(`src="${ZH_LANG}?v=`)) return source;
+  const anchor = `  <script src="${AI_BUTTON}?v=20260821-ai-v10"></script>`;
+  if (!source.includes(anchor)) return source;
+  return source.replace(anchor, anchor + `\n${tag}`);
+});
+
 if (fs.existsSync(path.join(ROOT, 'premarket-ui-truth-hotfix.js'))) require('./premarket-ui-truth-hotfix.js');
 if (fs.existsSync(path.join(ROOT, 'premarket-selector-hotfix.js'))) require('./premarket-selector-hotfix.js');
 
-console.log('[VTRADE START] Pre-Market AI core ready | Telegram isolated');
+console.log('[VTRADE START] Pre-Market AI core ready | Telegram isolated | Chinese UI pack ready');
 require('./vtrade-logic-ui-hotfix.js');
 // IMPORTANT: ai-telegram-diagnostic-hotfix.js is no longer loaded by CORE.
 // Telegram delivery belongs exclusively to telegram-bot-ai-service.js.
