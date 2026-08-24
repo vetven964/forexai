@@ -45,7 +45,6 @@ function diagnostics(result, pre) {
   const pc = pre?.confirmations || pre?.gates || {};
   const mtf = result.mtfContract || result.coreMtf || result.mtf || {};
   const structure = result.structure || result.executionStructure || {};
-  const sweep = result.sweep || result.liquiditySweep || {};
   const disp = result.displacement || result.candleDisplacement || {};
   const fvg = result.fvg || result.fvgZone || {};
   const ob = result.orderBlock || result.ob || {};
@@ -71,12 +70,18 @@ async function runScan() {
   running = true;
   scanSeq += 1;
   const started = Date.now();
-  console.log(`[TELEGRAM AUTO] Scan start | seq=${scanSeq} | MT5_READY=${mt5Ready()}`);
   try {
+    // Pre-Market is the authoritative live readiness source. The old global MT5 flag
+    // could be sampled before the feed state was published and falsely report false
+    // while the API/UI already had 5/5 live mappings.
     const pre = await preMarketAuthority();
     const preReady = pre?.success === true && Number(pre?.available || 0) >= 4;
+    const mt5ReadyFromAuthority = preReady;
     const preAuthorized = pre?.gates?.allGatesPassed === true && pre?.execution?.authorization === true && pre?.execution?.status === 'ENTRY_READY';
+
+    console.log(`[TELEGRAM AUTO] Scan start | seq=${scanSeq} | MT5_READY=${mt5ReadyFromAuthority} | GLOBAL_MT5_READY=${mt5Ready()}`);
     console.log(`[TELEGRAM AUTO] Pre-Market authority | ready=${preReady} | authorized=${preAuthorized} | transition=${pre?.workflow?.marketTransition?.phase || pre?.marketTransition?.phase || 'UNKNOWN'} | gates=${pre?.processing?.gatesPassed ?? '—'}/${pre?.processing?.gatesRequired ?? 10} | reason=${pre?.execution?.reason || pre?.error || '—'}`);
+
     if (typeof global.vtradeRunTelegramScan === 'function') {
       const result = await Promise.race([
         Promise.resolve(global.vtradeRunTelegramScan()),
