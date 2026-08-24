@@ -13,6 +13,7 @@ const TELEGRAM_SERVICE=path.join(ROOT,'telegram-bot-ai-service-v4.js');
 const UI_MARK='VTRADE_PREMARKET_INTELLIGENCE_UI_V2';
 const AUTH_UI_MARK='VTRADE_PREMARKET_AUTHORITY_UI_V1';
 const V9_MARK='VTRADE_PREMARKET_V9_UI';
+const NEWS_GATE_MARK='VTRADE_NEWS_CALENDAR_GATE_V1';
 function installDashboardUI(){
   if(!fs.existsSync(DASHBOARD)||!fs.existsSync(POST)||!fs.existsSync(V9))return;
   let s=fs.readFileSync(DASHBOARD,'utf8');
@@ -41,6 +42,21 @@ function installTelegramBridge(){
     console.log('[V-TRADE TELEGRAM BRIDGE] installed into CORE');
   }
 }
+function installNewsCalendarGate(){
+  const server=path.join(ROOT,'server.js');
+  if(!fs.existsSync(server))throw new Error('server.js not found');
+  let s=fs.readFileSync(server,'utf8');
+  if(s.includes(NEWS_GATE_MARK)){
+    console.log('[V-TRADE NEWS V1] authoritative calendar gate already installed');
+    return;
+  }
+  const anchor='const app = express();';
+  if(!s.includes(anchor))throw new Error('server app marker not found for news gate');
+  const code=`\n/* ${NEWS_GATE_MARK} */\ntry{require('./pre-market-news-calendar-hotfix-v1')(app);}catch(e){console.error('[V-TRADE NEWS V1] install failed:',e.message);throw e;}\n`;
+  s=s.replace(anchor,anchor+code,1);
+  fs.writeFileSync(server,s,'utf8');
+  console.log('[V-TRADE NEWS V1] authoritative economic calendar gate installed before CORE routes');
+}
 function startIndependentTelegram(){
   if(String(process.env.VTRADE_TELEGRAM_SEPARATE||'true').toLowerCase()!=='true'){console.log('[V-TRADE TELEGRAM AI] separate service disabled');return;}
   const token=process.env.TELEGRAM_TOKEN||process.env.TELEGRAM_AUTO_TOKEN||'';
@@ -58,6 +74,7 @@ function startIndependentTelegram(){
 }
 installDashboardUI();
 installTelegramBridge();
+installNewsCalendarGate();
 startIndependentTelegram();
 try{require('./package-access-hotfix.js');console.log('[V-TRADE START] Package/RBAC access gate loaded');}catch(e){console.error('[V-TRADE PACKAGE] FATAL:',e.stack||e.message);throw e;}
 try{require('./pre-market-route-boot-hotfix.js');console.log('[V-TRADE START] Pre-Market route boot hotfix loaded');}catch(e){console.error('[V-TRADE PRE-MARKET] FATAL boot hotfix:',e.stack||e.message);throw e;}
