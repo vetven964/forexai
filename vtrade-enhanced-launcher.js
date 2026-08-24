@@ -66,22 +66,28 @@ function startIndependentTelegram(){
   const childEnv={...process.env,TELEGRAM_TOKEN:token,TELEGRAM_CHAT_ID:chat,TELEGRAM_AUTO_TOKEN:'',TELEGRAM_AUTO_CHAT_ID:'',TELEGRAM_AUTO_ALERT_ENABLED:'false',VTRADE_CORE_URL:process.env.VTRADE_CORE_URL||`http://127.0.0.1:${process.env.PORT||10000}`,VTRADE_TELEGRAM_SEPARATE:'true'};
   process.env.TELEGRAM_TOKEN='';process.env.TELEGRAM_CHAT_ID='';process.env.TELEGRAM_AUTO_TOKEN='';process.env.TELEGRAM_AUTO_CHAT_ID='';process.env.TELEGRAM_AUTO_ALERT_ENABLED='false';process.env.VTRADE_TELEGRAM_SEPARATE='true';
   console.log('[V-TRADE TELEGRAM SEPARATION] Legacy CORE Telegram Auto Scanner = DISABLED');
-  const child=spawn(process.execPath,[TELEGRAM_SERVICE],{env:childEnv,stdio:'inherit'});
-  child.on('exit',(code,signal)=>console.warn('[V-TRADE TELEGRAM AI] child exited | code='+(code??'')+' signal='+(signal||'')));
-  child.on('error',e=>console.error('[V-TRADE TELEGRAM AI] child error:',e.message));
-  global.__vtradeTelegramChild=child;
-  console.log('[V-TRADE PROCESS SEPARATION] CORE=PRE-MARKET/AI | TELEGRAM=COMPACT-V4 CHILD');
+  const launch=()=>{
+    if(global.__vtradeTelegramChild&&!global.__vtradeTelegramChild.killed)return;
+    console.log('[V-TRADE TELEGRAM AI] delayed child boot | CORE startup grace complete');
+    const child=spawn(process.execPath,[TELEGRAM_SERVICE],{env:childEnv,stdio:'inherit'});
+    child.on('exit',(code,signal)=>console.warn('[V-TRADE TELEGRAM AI] child exited | code='+(code??'')+' signal='+(signal||'')));
+    child.on('error',e=>console.error('[V-TRADE TELEGRAM AI] child error:',e.message));
+    global.__vtradeTelegramChild=child;
+  };
+  // CORE must finish binding/listening before the Telegram child starts polling/fetching.
+  setTimeout(launch,8000);
+  console.log('[V-TRADE PROCESS SEPARATION] CORE=PRE-MARKET/AI | TELEGRAM=COMPACT-V4 CHILD | delayed=8000ms');
 }
 installDashboardUI();
 installTelegramBridge();
 installNewsCalendarGate();
-startIndependentTelegram();
 try{require('./package-access-hotfix.js');console.log('[V-TRADE START] Package/RBAC access gate loaded');}catch(e){console.error('[V-TRADE PACKAGE] FATAL:',e.stack||e.message);throw e;}
 try{require('./pre-market-route-boot-hotfix.js');console.log('[V-TRADE START] Pre-Market route boot hotfix loaded');}catch(e){console.error('[V-TRADE PRE-MARKET] FATAL boot hotfix:',e.stack||e.message);throw e;}
 try{require('./ai-confirmation-runtime-v2.js');console.log('[V-TRADE START] AI Confirmation Runtime V3 bootstrapped');}catch(e){console.error('[V-TRADE AI] FATAL:',e.stack||e.message);throw e;}
 require('./pre-market-structure-hook.js');
 require('./predeploy-consistency-hotfix.js');
 require('./vtrade-start.js');
-// Normalize the legacy CORE Telegram startup message after V4 receives its private credentials.
 try{require('./telegram-core-log-ownership-hotfix.js');}catch(e){console.error('[V-TRADE TELEGRAM] log ownership hotfix failed:',e.message);throw e;}
 require('./server-launcher.js');
+// Start Telegram only after the CORE server has had time to bind and expose its feed routes.
+startIndependentTelegram();
