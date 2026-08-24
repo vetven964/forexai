@@ -33,6 +33,16 @@ try { require('./telegram-auto-mt5-readiness-bridge.js'); } catch (e) {
 try { require('./telegram-final-runtime-hook.js'); } catch (e) {
   console.warn('[V-TRADE TELEGRAM] final runtime hook skipped safely:', e.message);
 }
+// VTRADE_TELEGRAM_PREMARKET_CONTINUITY_GUARD_V1
+// The guard existed in the repository but was not loaded by Render's --require preload.
+// Load it here so MT5-ready scans actually consult the canonical Pre-Market authority.
+try {
+  require('./telegram-auto-scan-guard.js');
+  console.log('[V-TRADE TELEGRAM] Pre-Market continuity scan guard loaded');
+} catch (e) {
+  console.error('[V-TRADE TELEGRAM] continuity scan guard failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
 console.log('[V-TRADE TELEGRAM] single authoritative bilingual renderer active');
 try { require('./sunday-weekly-preopen.js'); } catch (e) {
   console.error('[V-TRADE SUNDAY PREOPEN] preload failed:', e.stack || e.message);
