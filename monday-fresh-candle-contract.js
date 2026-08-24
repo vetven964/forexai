@@ -1,9 +1,9 @@
-/* V-TRADE AI — Sunday/Monday market transition contract V8 */
+/* V-TRADE AI — Sunday/Monday market transition contract V9 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_SUNDAY_MONDAY_TRANSITION_CONTRACT_V8';
+const MARKER='VTRADE_SUNDAY_MONDAY_TRANSITION_CONTRACT_V9';
 
 function patch(source){
   if(!source)return source;
@@ -11,16 +11,22 @@ function patch(source){
   const i=source.indexOf(anchor);
   if(i<0)return source;
 
-  const code=`\n/* ${MARKER} */\n(function installSundayMondayTransition(){\n  const day=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Phnom_Penh',weekday:'short'});\n  function freshMondayM5(value,nowMs){\n    const t=Number(value); if(!Number.isFinite(t))return false;\n    const ms=t<1e12?t*1000:t;\n    return day.format(new Date(nowMs))==='Mon' && day.format(new Date(ms))==='Mon' && nowMs-ms<=10*60*1000;\n  }\n  globalThis.vtradeMarketTransitionState=function(candleTime,nowMs){\n    const d=day.format(new Date(nowMs));\n    const fresh=freshMondayM5(candleTime,nowMs);\n    return {phase:d==='Sun'?'SUNDAY_PREOPEN':d==='Mon'?(fresh?'MONDAY_LIVE_REVALIDATION':'MONDAY_OPEN_WAIT'):'LIVE_MARKET',fridayContext:d==='Sun'||(d==='Mon'&&!fresh),mondayFreshM5:fresh};\n  };\n  globalThis.vtradeMondayExecutionFreshTime=freshMondayM5;\n})();\n`;
+  const code=`\n/* ${MARKER} */\n(function installSundayMondayTransition(){\n  const day=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Phnom_Penh',weekday:'short'});\n  function freshMondayM5(value,nowMs){\n    const t=Number(value); if(!Number.isFinite(t))return false;\n    const ms=t<1e12?t*1000:t;\n    return day.format(new Date(nowMs))==='Mon' && day.format(new Date(ms))==='Mon' && nowMs-ms>=0 && nowMs-ms<=10*60*1000;\n  }\n  globalThis.vtradeMarketTransitionState=function(candleTime,nowMs){\n    const d=day.format(new Date(nowMs));\n    const fresh=freshMondayM5(candleTime,nowMs);\n    return {phase:d==='Sun'?'SUNDAY_PREOPEN':d==='Mon'?(fresh?'MONDAY_LIVE_REVALIDATION':'MONDAY_OPEN_WAIT'):'LIVE_MARKET',fridayContext:d==='Sun'||(d==='Mon'&&!fresh),mondayFreshM5:fresh};\n  };\n  globalThis.vtradeMondayExecutionFreshTime=freshMondayM5;\n})();\n`;
 
   let out=source;
   if(!out.includes(MARKER))out=source.slice(0,i)+code+source.slice(i);
 
-  // Critical fix: never reference the local `m` binding from analyze() before initialization.
-  // A missing candle timestamp fails closed instead of throwing a TDZ ReferenceError.
-  out=out.replace(/globalThis\.vtradeMarketTransitionState\?\.\(typeof m!=='undefined'\?m\?\.candle\?\.candleTime:undefined,Date\.now\(\)\)/g,"globalThis.vtradeMarketTransitionState?.(globalThis.vtradeLatestM5CandleTime??null,Date.now())");
-  out=out.replace(/globalThis\.vtradeMarketTransitionState\?\.\(m\?\.candle\?\.candleTime,Date\.now\(\)\)/g,"globalThis.vtradeMarketTransitionState?.(globalThis.vtradeLatestM5CandleTime??null,Date.now())");
+  // V9: repair the actual analyze() scope. Previous patches could leave a
+  // marketTransition declaration missing or outside analyze(), causing a ReferenceError.
+  // Remove stale local declarations first, then define exactly one at analyze() entry.
+  out=out.replace(/\s*const\s+marketTransition\s*=\s*globalThis\.vtradeMarketTransitionState\?\.\([^;]+;\s*/g,'\n');
+  const analyzeRe=/(function\s+analyze\s*\(\s*\)\s*\{)/;
+  if(analyzeRe.test(out)){
+    const decl="$1\n    const marketTransition=globalThis.vtradeMarketTransitionState?.(globalThis.vtradeLatestM5CandleTime??null,Date.now())||{phase:'LIVE_MARKET',fridayContext:false,mondayFreshM5:true};\n";
+    out=out.replace(analyzeRe,decl);
+  }
 
+  // Make sure the final execution gate always uses the transition gate.
   if(!out.includes('const mondayExecutionGate=')){
     const allRe=/const\s+all\s*=([^;]+);/;
     const m=out.match(allRe);
@@ -41,7 +47,7 @@ try{
   if(fs.existsSync(SERVER)){
     const before=fs.readFileSync(SERVER,'utf8');
     const after=patch(before);
-    if(after!==before){fs.writeFileSync(SERVER,after,'utf8');console.log('[V-TRADE MARKET TRANSITION] V8 active | TDZ-safe | Sunday pre-open | Monday fresh M5 | fail-closed');}
+    if(after!==before){fs.writeFileSync(SERVER,after,'utf8');console.log('[V-TRADE MARKET TRANSITION] V9 active | analyze-scope fixed | TDZ-safe | fail-closed');}
   }
-}catch(e){console.error('[V-TRADE MARKET TRANSITION] V8 failed:',e.stack||e.message);throw e;}
+}catch(e){console.error('[V-TRADE MARKET TRANSITION] V9 failed:',e.stack||e.message);throw e;}
 module.exports={patch};
