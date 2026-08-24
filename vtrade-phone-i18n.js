@@ -44,7 +44,8 @@ function add(){
  document.head.appendChild(s);document.body.appendChild(host);
  host.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const kh=b.dataset.lang==='km';localStorage.setItem('vtrade_phone_lang',kh?'km':'en');apply(kh)}));
 }
-function run(){if(!phone())return;add();apply(localStorage.getItem('vtrade_phone_lang')==='km')}
+function safeArea(){if(!phone())return;let s=document.getElementById('vtradePhoneSafeArea');if(!s){s=document.createElement('style');s.id='vtradePhoneSafeArea';document.head.appendChild(s)}s.textContent='@media(max-width:900px){body.vtrade-mobile{padding-bottom:calc(150px + env(safe-area-inset-bottom))!important}body.vtrade-mobile .wrap{padding-bottom:150px!important;scroll-padding-bottom:150px!important}#vtradePreMarket{scroll-margin-bottom:150px!important}}';}
+function run(){if(!phone())return;safeArea();add();apply(localStorage.getItem('vtrade_phone_lang')==='km')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
 new MutationObserver(()=>{if(phone())run()}).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('resize',run,{passive:true});
