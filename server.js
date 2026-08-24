@@ -11,6 +11,8 @@ const crypto = require('crypto');
 const storage = require('./storage');
 
 const app = express();
+// V-TRADE NEWS V1 — authoritative economic-calendar gate MUST load first
+try { require('./pre-market-news-calendar-hotfix-v1')(app); } catch (e) { console.error('[V-TRADE NEWS V1] install failed:', e.message); }
 // V TRADE AI — Pre-Market + 60m Macro/Truth Social engine
 try { require('./pre-market-news-engine')(app); } catch (e) { console.error('[PRE-MARKET] install failed:', e.message); }
 
