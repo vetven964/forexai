@@ -35,13 +35,14 @@ try { require('./telegram-auto-mt5-readiness-bridge.js'); } catch (e) {
 try { require('./telegram-final-runtime-hook.js'); } catch (e) {
   console.warn('[V-TRADE TELEGRAM] final runtime hook skipped safely:', e.message);
 }
-try {
-  require('./telegram-auto-scan-guard.js');
-  console.log('[V-TRADE TELEGRAM] Pre-Market continuity scan guard loaded');
-} catch (e) {
-  console.error('[V-TRADE TELEGRAM] continuity scan guard failed:', e.stack || e.message);
-  process.exitCode = 1;
-}
+
+// IMPORTANT: do not load telegram-auto-scan-guard.js in CORE.
+// The guard was useful during migration, but the production architecture now
+// runs Telegram exclusively in telegram-bot-ai-service-v4.js. Loading the old
+// continuity guard here created misleading MT5_READY/GLOBAL_MT5_READY logs and
+// an extra Pre-Market polling loop even though CORE Telegram delivery is locked.
+console.log('[V-TRADE TELEGRAM] CORE scanner guard disabled | canonical V4 child owns Telegram');
+
 console.log('[V-TRADE TELEGRAM] single authoritative bilingual renderer active');
 try { require('./sunday-weekly-preopen.js'); } catch (e) {
   console.error('[V-TRADE SUNDAY PREOPEN] preload failed:', e.stack || e.message);
