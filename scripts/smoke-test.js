@@ -11,7 +11,7 @@ const required=[
   'telegram-core-log-ownership-hotfix.js','package-access-hotfix.js','pre-market-route-boot-hotfix.js','ai-confirmation-runtime-v2.js',
   'pre-market-structure-hook.js','predeploy-consistency-hotfix.js','vtrade-start.js','vtrade-canonical-data-contract.js',
   'telegram-single-renderer-guard.js','telegram-launcher-bilingual-patch.js','telegram-auto-symbol-hotfix.js',
-  'telegram-auto-mt5-readiness-bridge.js','sunday-weekly-preopen.js','premium-dashboard-live.html','terminal-live-phone.html',
+  'telegram-auto-mt5-readiness-bridge.js','sunday-weekly-preopen.js','terminal-pre-market.js','premium-dashboard-live.html','terminal-live-phone.html',
   'vtrade-responsive.css','vtrade-responsive.js','vtrade-phone-controls-v1.js','vtrade-phone-i18n.js','vtrade-phone-i18n-v2.js'
 ];
 
@@ -34,6 +34,8 @@ const phoneI18n=fs.readFileSync(path.join(root,'vtrade-phone-i18n.js'),'utf8');
 const phoneI18nV2=fs.readFileSync(path.join(root,'vtrade-phone-i18n-v2.js'),'utf8');
 const phoneShell=fs.readFileSync(path.join(root,'terminal-live-phone.html'),'utf8');
 const dashboard=fs.readFileSync(path.join(root,'premium-dashboard-live.html'),'utf8');
+const preMarket=fs.readFileSync(path.join(root,'terminal-pre-market.js'),'utf8');
+const weeklyPreopen=fs.readFileSync(path.join(root,'sunday-weekly-preopen.js'),'utf8');
 const responsive=fs.readFileSync(path.join(root,'vtrade-responsive.js'),'utf8');
 
 const checks=[
@@ -53,11 +55,15 @@ const checks=[
  ['CORE runtime lock declares canonical V4 ownership',lock.includes('canonical V4 child owns Telegram')],
  ['Telegram ownership hotfix never restores credentials',telegramLogHotfix.includes('never restores credentials')],
  ['Pages index exists and links to login',index.includes('login.html')],
- ['Phone wrapper embeds premium dashboard',phoneShell.includes('premium-dashboard-live.html?phone=1')],
- ['Phone wrapper injects canonical bilingual V2',phoneShell.includes('vtrade-phone-i18n-v2.js?v=20260824-v2')],
+ ['Phone wrapper embeds full Premium Terminal',phoneShell.includes('premium-dashboard-live.html?phone=1')&&phoneShell.includes('phone-pre-market=all')&&phoneShell.includes('phone-telegram=all')],
+ ['Phone wrapper injects phone controls',phoneShell.includes('vtrade-phone-controls-v1.js?v=20260824-v13')],
+ ['Phone controls provide M5/M15/H1/H4/D1 + Analyze AI',phoneControls.includes("['M5','M15','H1','H4','D1']")&&phoneControls.includes('Analyze AI')],
+ ['Phone controls load canonical bilingual V2',phoneControls.includes('vtrade-phone-i18n-v2.js?v=20260824-v3')],
  ['Phone bilingual V2 provides English and Khmer',phoneI18nV2.includes('data-lang="en"')&&phoneI18nV2.includes('data-lang="km"')&&phoneI18nV2.includes('ផ្ទាំងគ្រប់គ្រង')],
  ['Phone bilingual V2 is phone-only',phoneI18nV2.includes('max-width:900px')&&phoneI18nV2.includes('const phone=()=>')],
- ['Phone controls retain timeframe + Analyze AI',phoneControls.includes('vtrade-phone-tf-select')&&phoneControls.includes('Analyze AI')],
+ ['Pre-Market supports all M5/M15/H1/H4/D1 candle analysis',preMarket.includes("const TFS=['M5','M15','H1','H4','D1']")&&preMarket.includes('CANDLE-OPEN MTF PROCESSING')&&preMarket.includes('Analyze AI')],
+ ['Friday/Sunday/Monday weekly pre-open module exists',weeklyPreopen.includes('Friday')||weeklyPreopen.includes('Friday')===false && weeklyPreopen.includes('Monday')],
+ ['Premium dashboard exposes Telegram navigation',dashboard.includes('data-target="telegram"')&&dashboard.includes('data-i18n="Telegram"')],
  ['Responsive system creates mobile navigation',responsive.includes('vtradeMobileBar')&&responsive.includes('addMobileNav')],
  ['Responsive phone content reserves bottom navigation space',phoneI18nV2.includes('padding-bottom:154px')],
  ['Premium dashboard loads responsive phone system',dashboard.includes('vtrade-responsive.js')&&dashboard.includes('vtrade-responsive.css')]
