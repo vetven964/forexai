@@ -1,14 +1,15 @@
-/* V-TRADE AI — Telegram Bot AI Service V3
- * FULLY INDEPENDENT TELEGRAM PROCESS.
- * Reads ONLY broker-native MT5 market data from /api/telegram/market-snapshot.
- * It does NOT load or consume Pre-Market analysis, ICT results, execution zones,
- * AI confirmation, or the CORE final-signal contract.
+/* V-TRADE AI — Telegram Bot AI Service V4.1
+ * INDEPENDENT TELEGRAM PROCESS.
+ * Reads broker-native MT5 market data from /api/telegram/market-snapshot.
+ * Uses ONLY the shared Friday/Sunday/Monday transition CONTRACT for temporal safety.
+ * It does NOT load Pre-Market AI, ICT execution zones, AI confirmation, or CORE final-signal state.
  */
 'use strict';
 
 require('dotenv').config();
 const TelegramBot=require('node-telegram-bot-api');
 const {getNews,formatNews}=require('./market-news-service.js');
+const {getMarketTransitionState}=require('./monday-fresh-candle-contract.js');
 
 const TOKEN=String(process.env.TELEGRAM_TOKEN||process.env.TELEGRAM_AUTO_TOKEN||'').trim();
 const CHAT_ID=String(process.env.TELEGRAM_CHAT_ID||process.env.TELEGRAM_AUTO_CHAT_ID||'').trim();
@@ -33,6 +34,16 @@ const seenNews=new Set();
 const num=v=>Number.isFinite(Number(v))?Number(v):null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function bars(s,tf){return Array.isArray(s?.timeframes?.[tf]?.bars)?s.timeframes[tf].bars:[];}
+function lastM5CandleTime(s){
+  const b=bars(s,'M5').at(-1)||{};
+  return b.candleTime??b.timeMs??b.timestamp??b.openTime??b.time??b.t??null;
+}
+function transitionLabel(t){
+  if(t?.phase==='SUNDAY_PREOPEN')return 'SUNDAY PRE-OPEN';
+  if(t?.phase==='MONDAY_OPEN_WAIT')return 'MONDAY OPEN WAIT / FRIDAY HISTORICAL';
+  if(t?.phase==='MONDAY_LIVE_REVALIDATION')return 'MONDAY LIVE REVALIDATION';
+  return t?.fridayContext?'FRIDAY HISTORICAL':'LIVE MARKET';
+}
 function sma(xs,n){if(xs.length<n)return null;return xs.slice(-n).reduce((a,b)=>a+b,0)/n;}
 function range(b){return Math.max(0,Number(b.h)-Number(b.l));}
 function body(b){return Math.abs(Number(b.c)-Number(b.o));}
@@ -87,15 +98,26 @@ function analyze(s){
   const tfs=['M5','M15','H1','H4'];
   const rows=tfs.map(tf=>({tf,score:tfScore(bars(s,tf))})).filter(x=>Number.isFinite(x.score));
   const mtf=directionFromRows(rows),raw=bars(s,'M15'),last=raw.at(-1)||{};
+  const transition=getMarketTransitionState(lastM5CandleTime(s),Date.now());
   const price=num(s.price??last.c),sweep=liquiditySweep(raw),st=structure(raw),disp=displacement(raw),gap=fvg(raw),side=mtf.bias;
   const ob=side==='NEUTRAL'?{found:false}:orderBlock(raw,side),recent=raw.slice(-20);
   const hi=recent.length?Math.max(...recent.map(x=>Number(x.h))):null,lo=recent.length?Math.min(...recent.map(x=>Number(x.l))):null,mid=hi!=null&&lo!=null?(hi+lo)/2:null;
   const pd=side==='BULLISH'?(price!=null&&mid!=null&&price<mid):(side==='BEARISH'?(price!=null&&mid!=null&&price>mid):false);
   const closes=raw.map(x=>num(x.c)).filter(Number.isFinite),m5=sma(closes,5),m20=sma(closes,20),momentum=side==='BULLISH'?(m5!=null&&m20!=null&&m5>m20):(side==='BEARISH'?(m5!=null&&m20!=null&&m5<m20):false);
-  const spread=num(s.spread),spreadPass=spread==null?true:spread<=MAX_SPREAD,sweepPass=side==='BULLISH'?sweep.bullish:side==='BEARISH'?sweep.bearish:false,mssPass=side==='BULLISH'?st.bullish:side==='BEARISH'?st.bearish:false,bosPass=mssPass,dispPass=side==='BULLISH'?disp.bullish:side==='BEARISH'?disp.bearish:false,fvgPass=side==='BULLISH'?gap.bullish:side==='BEARISH'?gap.bearish:false,obPass=ob.found,structurePass=mssPass||bosPass,zonePass=pd&&(fvgPass||obPass);
+  const spread=num(s.spread),spreadPass=spread==null?true:spread<=MAX_SPREAD;
+  const sweepPass=side==='BULLISH'?sweep.bullish:side==='BEARISH'?sweep.bearish:false;
+  const mssPass=side==='BULLISH'?st.bullish:side==='BEARISH'?st.bearish:false;
+  const bosPass=mssPass;
+  const dispPass=side==='BULLISH'?disp.bullish:side==='BEARISH'?disp.bearish:false;
+  const fvgPass=side==='BULLISH'?gap.bullish:side==='BEARISH'?gap.bearish:false;
+  const obPass=ob.found;
+  const structurePass=mssPass||bosPass;
+  const zonePass=pd&&(fvgPass||obPass);
   const gates={liquiditySweep:sweepPass,mss:mssPass,bos:bosPass,displacement:dispPass,fvg:fvgPass,orderBlock:obPass,premiumDiscount:pd,executionZone:zonePass,momentum,spread:spreadPass};
-  const passed=Object.values(gates).filter(Boolean).length,confidence=clamp(Math.round(mtf.score*0.7+passed/10*30),0,100);
-  const authorized=side!=='NEUTRAL'&&s.connected===true&&rows.length===4&&sweepPass&&structurePass&&dispPass&&(fvgPass||obPass)&&pd&&momentum&&spreadPass&&confidence>=75;
+  const passed=Object.values(gates).filter(Boolean).length;
+  const confidence=clamp(Math.round(mtf.score*0.7+passed/10*30),0,100);
+  const temporalPass=transition.phase==='LIVE_MARKET'||(transition.phase==='MONDAY_LIVE_REVALIDATION'&&transition.mondayFreshM5);
+  const authorized=side!=='NEUTRAL'&&s.connected===true&&rows.length===4&&temporalPass&&sweepPass&&structurePass&&dispPass&&(fvgPass||obPass)&&pd&&momentum&&spreadPass&&confidence>=75;
   let entry=null,sl=null,tp=[];
   if(authorized&&price!=null){
     entry=price;
@@ -105,6 +127,7 @@ function analyze(s){
   const signal=authorized?(side==='BULLISH'?'BUY':'SELL'):'WAIT',reasons=[];
   if(!s.connected)reasons.push('MT5 not ready');
   if(rows.length<4)reasons.push('MTF history incomplete');
+  if(!temporalPass)reasons.push(transition.phase==='SUNDAY_PREOPEN'?'Sunday pre-open: waiting for Monday live candle':'Monday fresh M5 execution candle required; Friday candle remains historical reference');
   if(!sweepPass)reasons.push('liquidity sweep WAIT');
   if(!structurePass)reasons.push('MSS/BOS WAIT');
   if(!dispPass)reasons.push('displacement WAIT');
@@ -113,7 +136,7 @@ function analyze(s){
   if(!momentum)reasons.push('momentum WAIT');
   if(!spreadPass)reasons.push('spread WAIT');
   if(confidence<75)reasons.push('confidence below authorization threshold');
-  return {source:'TELEGRAM_INDEPENDENT_AI',symbol:'XAUUSD',price,bias:mtf.bias,directionScore:mtf.score,confidence,signal,tradeAuthorized:authorized,timeframe:'M15',entry,stopLoss:sl,takeProfit:tp,gates,gateCount:`${passed}/${Object.keys(gates).length}`,reason:reasons.length?reasons.join('; '):'All independent Telegram AI gates passed',mtf:rows,spread,generatedAt:new Date().toISOString()};
+  return {source:'TELEGRAM_INDEPENDENT_AI',symbol:'XAUUSD',price,bias:mtf.bias,directionScore:mtf.score,confidence,signal,tradeAuthorized:authorized,timeframe:'M15',entry,stopLoss:sl,takeProfit:tp,gates,gateCount:`${passed}/${Object.keys(gates).length}`,reason:reasons.length?reasons.join('; '):'All independent Telegram AI gates passed',mtf:rows,spread,transition,temporalPass,generatedAt:new Date().toISOString()};
 }
 async function readMarket(){
   const headers={};if(BRIDGE_KEY)headers['X-VTRADE-TELEGRAM-KEY']=BRIDGE_KEY;
@@ -122,21 +145,23 @@ async function readMarket(){
   return d;
 }
 function fmt(v){return Number.isFinite(Number(v))?Number(v).toFixed(2):'WAIT';}
-function signalKey(a){return [a.signal,a.timeframe,a.entry,a.stopLoss,(a.takeProfit||[]).join(','),a.generatedAt?.slice(0,15)].join('|');}
+function signalKey(a){return [a.signal,a.timeframe,a.entry,a.stopLoss,(a.takeProfit||[]).join(','),a.transition?.phase,a.transition?.candleTime,a.generatedAt?.slice(0,15)].join('|');}
 function formatSignal(a){
   const side=a.signal==='BUY'?'🟢 BUY':a.signal==='SELL'?'🔴 SELL':'🟡 WAIT',tp=a.takeProfit||[];
-  return ['🤖 *V TRADE AI — TELEGRAM INDEPENDENT ICT*','', '📊 Asset: *XAU/USD (Gold)*','💰 Price: *'+fmt(a.price)+'*','⚡ Action: *'+side+'*','📈 Bias: *'+String(a.bias)+'*','📊 Direction Score: *'+a.directionScore+'/100*','🧠 Confidence: *'+a.confidence+'/100*','', '🔎 ICT Gates: *'+a.gateCount+'*','💧 Liquidity Sweep: *'+(a.gates.liquiditySweep?'PASS':'WAIT')+'* | MSS: *'+(a.gates.mss?'PASS':'WAIT')+'* | BOS: *'+(a.gates.bos?'PASS':'WAIT')+'*','⚡ Displacement: *'+(a.gates.displacement?'PASS':'WAIT')+'* | FVG: *'+(a.gates.fvg?'PASS':'WAIT')+'* | OB: *'+(a.gates.orderBlock?'PASS':'WAIT')+'*','📍 Premium/Discount: *'+(a.gates.premiumDiscount?'PASS':'WAIT')+'* | Momentum: *'+(a.gates.momentum?'PASS':'WAIT')+'* | Spread: *'+(a.gates.spread?'PASS':'WAIT')+'*','', '🎯 Entry: *'+fmt(a.entry)+'*','🛑 SL: *'+fmt(a.stopLoss)+'*','🎯 TP1: *'+fmt(tp[0])+'* | TP2: *'+fmt(tp[1])+'* | TP3: *'+fmt(tp[2])+'*','', a.tradeAuthorized?'🔐 *TELEGRAM AI — TRADE AUTHORIZED*':'⏳ *TELEGRAM AI — WAIT / NO ORDER AUTHORIZED*','🧠 '+String(a.reason)].join('\n');
+  const context=transitionLabel(a.transition);
+  const contextLine=a.transition?.fridayContext?'ℹ️ Friday candle is historical reference; waiting for fresh Monday M5 execution candle.':a.transition?.phase==='SUNDAY_PREOPEN'?'ℹ️ Sunday pre-open: Friday remains historical; no live Monday execution yet.':a.transition?.phase==='MONDAY_LIVE_REVALIDATION'?'ℹ️ Fresh Monday M5 detected; revalidating live ICT gates.':'';
+  return ['🤖 *V TRADE AI — TELEGRAM INDEPENDENT ICT*','', '📊 Asset: *XAU/USD (Gold)*','💰 Price: *'+fmt(a.price)+'*','⚡ Action: *'+side+'*','📈 Bias: *'+String(a.bias)+'*','📊 Direction Score: *'+a.directionScore+'/100*','🧠 Confidence: *'+a.confidence+'/100*','⏱️ Context: *'+context+'*','', '🔎 ICT Gates: *'+a.gateCount+'*','💧 Liquidity Sweep: *'+(a.gates.liquiditySweep?'PASS':'WAIT')+'* | MSS: *'+(a.gates.mss?'PASS':'WAIT')+'* | BOS: *'+(a.gates.bos?'PASS':'WAIT')+'*','⚡ Displacement: *'+(a.gates.displacement?'PASS':'WAIT')+'* | FVG: *'+(a.gates.fvg?'PASS':'WAIT')+'* | OB: *'+(a.gates.orderBlock?'PASS':'WAIT')+'*','📍 Premium/Discount: *'+(a.gates.premiumDiscount?'PASS':'WAIT')+'* | Momentum: *'+(a.gates.momentum?'PASS':'WAIT')+'* | Spread: *'+(a.gates.spread?'PASS':'WAIT')+'*','', '🎯 Entry: *'+fmt(a.entry)+'*','🛑 SL: *'+fmt(a.stopLoss)+'*','🎯 TP1: *'+fmt(tp[0])+'* | TP2: *'+fmt(tp[1])+'* | TP3: *'+fmt(tp[2])+'*','', a.tradeAuthorized?'🔐 *TELEGRAM AI — TRADE AUTHORIZED*':'⏳ *TELEGRAM AI — WAIT / NO ORDER AUTHORIZED*',contextLine,'🧠 '+String(a.reason)].filter(Boolean).join('\n');
 }
 async function scan(sendWait=false){
   if(busy)return;
   busy=true;
   try{
     const market=await readMarket(),a=analyze(market);lastAnalysis=a;
-    console.log(`[TELEGRAM AUTO] Scan OK | signal=${a.signal} | bias=${a.bias} | score=${a.directionScore} | confidence=${a.confidence} | status=${a.tradeAuthorized?'AUTHORIZED':'WAIT — NO ENTRY'} | gates=${a.gateCount}`);
+    console.log(`[TELEGRAM AUTO] Scan OK | signal=${a.signal} | bias=${a.bias} | score=${a.directionScore} | confidence=${a.confidence} | status=${a.tradeAuthorized?'AUTHORIZED':'WAIT — NO ENTRY'} | gates=${a.gateCount} | transition=${a.transition.phase} | freshMondayM5=${a.transition.mondayFreshM5}`);
     if(!a.tradeAuthorized&&!sendWait)return;
     const key=signalKey(a);if(key===lastKey)return;
     await bot.sendMessage(CHAT_ID,formatSignal(a),{parse_mode:'Markdown'});lastKey=key;
-    console.log(`[V-TRADE TELEGRAM AI] ${a.tradeAuthorized?'ENTRY SENT':'WAIT UPDATE SENT'} | independent=true | signal=${a.signal}`);
+    console.log(`[V-TRADE TELEGRAM AI] ${a.tradeAuthorized?'ENTRY SENT':'WAIT UPDATE SENT'} | independent=true | signal=${a.signal} | transition=${a.transition.phase}`);
   }catch(e){console.warn('[V-TRADE TELEGRAM AI] MT5 market read failed:',e.message);}
   finally{busy=false;}
 }
@@ -148,7 +173,7 @@ async function sendNews(chatId,auto=false){
 bot.onText(/^\/(news|macro|fed)(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await sendNews(msg.chat.id,false);});
 bot.onText(/^\/signal(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await scan(true);});
 bot.onText(/^\/price(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;try{const m=await readMarket();await bot.sendMessage(msg.chat.id,'💰 *XAUUSD:* '+fmt(m.price)+'\n📡 MT5: *'+(m.connected?'READY':'WAIT')+'*\n📊 MTF: *'+['M5','M15','H1','H4'].map(tf=>tf+':'+(m.timeframes?.[tf]?.count||0)).join(' | ')+'*',{parse_mode:'Markdown'});}catch(e){await bot.sendMessage(msg.chat.id,'⚠️ MT5 price unavailable');}});
-bot.onText(/^\/help(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await bot.sendMessage(msg.chat.id,'🤖 *V TRADE AI — Telegram Independent*\n\n/signal — independent XAUUSD ICT scan\n/price — broker-native MT5 price\n/news — latest macro/Fed news\n/macro — macro radar\n/fed — Fed-focused news',{parse_mode:'Markdown'});});
-console.log('[V-TRADE TELEGRAM AI] INDEPENDENT V3 ACTIVE | SOURCE=RAW_MT5_ONLY | PreMarket=NOT_LOADED | CORE_FINAL_SIGNAL=NOT_USED | ICT_ENGINE=LOCAL_TELEGRAM | execution=LOCAL_GATE_ONLY');
+bot.onText(/^\/help(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await bot.sendMessage(msg.chat.id,'🤖 *V TRADE AI — Telegram Independent*\n\n/signal — independent XAUUSD ICT scan + Friday/Monday context\n/price — broker-native MT5 price\n/news — latest macro/Fed news\n/macro — macro radar\n/fed — Fed-focused news',{parse_mode:'Markdown'});});
+console.log('[V-TRADE TELEGRAM AI] INDEPENDENT V4.1 ACTIVE | SOURCE=RAW_MT5_ONLY | PreMarket=NOT_LOADED | FridayMonday=CONTRACT_READ_ONLY | ICT_ENGINE=LOCAL_TELEGRAM | execution=LOCAL_GATE_ONLY');
 scan(false);setInterval(()=>scan(false),POLL_MS);sendNews(CHAT_ID,true);setInterval(()=>sendNews(CHAT_ID,true),NEWS_POLL_MS);
 process.on('SIGTERM',()=>process.exit(0));process.on('SIGINT',()=>process.exit(0));
