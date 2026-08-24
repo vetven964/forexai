@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node vtrade-final-launcher.js",
-    "telegram:ai": "node telegram-bot-ai-service.js"
+    "telegram:ai": "node telegram-bot-ai-service-v4.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
