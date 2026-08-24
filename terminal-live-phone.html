@@ -5,28 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050912">
 <title>V TRADE AI — Phone Terminal</title>
-<style>
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04070d}
-#phoneFrame{display:block;width:100%;height:100%;border:0;background:#04070d}
-</style>
+<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04070d}#phoneFrame{display:block;width:100%;height:100%;border:0;background:#04070d}</style>
 </head>
 <body>
-<iframe id="phoneFrame" src="premium-dashboard-live.html?phone=1&mobile-shell=direct2&header-fix=20260822" title="V TRADE AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
+<iframe id="phoneFrame" src="premium-dashboard-live.html?phone=1&mobile-shell=direct2&header-fix=20260822&phone-i18n=v2" title="V TRADE AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
 <script>
 'use strict';
-// Phone wrapper intentionally keeps all UI/trading logic inside the same-origin terminal page.
-// Do not run a second language engine in the parent; the embedded terminal owns phone i18n.
 (function(){
-  const frame=document.getElementById('phoneFrame');
-  const ready=()=>{
-    try{
-      const doc=frame.contentDocument;
-      if(doc) doc.documentElement.dataset.vtradePhoneShell='1';
-    }catch(e){ console.warn('[V-TRADE PHONE SHELL] iframe unavailable',e); }
-  };
-  frame.addEventListener('load',ready,{passive:true});
-  if(frame.contentDocument?.readyState==='complete') ready();
+ const frame=document.getElementById('phoneFrame');
+ const inject=()=>{try{
+   const doc=frame.contentDocument;if(!doc||!doc.head)return;
+   if(!doc.getElementById('vtradePhoneI18nV2Injected')){
+     const s=doc.createElement('script');s.id='vtradePhoneI18nV2Injected';s.src='vtrade-phone-i18n-v2.js?v=20260824-v2';s.async=false;doc.head.appendChild(s);
+   }
+ }catch(e){console.warn('[V-TRADE PHONE SHELL] same-origin injection unavailable',e)}};
+ frame.addEventListener('load',inject,{passive:true});
+ if(frame.contentDocument?.readyState==='complete')inject();
 })();
 </script>
 </body>
