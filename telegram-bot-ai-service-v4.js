@@ -14,7 +14,23 @@ const BRIDGE_KEY=String(process.env.TELEGRAM_BRIDGE_API_KEY||process.env.MT5_BRI
 const POLL_MS=Math.max(5000,Number(process.env.TELEGRAM_AI_POLL_MS||60000));
 const NEWS_POLL_MS=Math.max(60000,Number(process.env.TELEGRAM_NEWS_POLL_MS||300000));
 if(!TOKEN||!CHAT_ID){console.warn('[V-TRADE TELEGRAM AI] disabled: Telegram credentials missing');process.exit(0);}
-const bot=new TelegramBot(TOKEN,{polling:true});let lastKey='',busy=false,newsBusy=false;const seenNews=new Set();
+
+process.on('unhandledRejection',e=>console.error('[V-TRADE TELEGRAM AI] unhandled rejection:',e?.stack||e));
+process.on('uncaughtException',e=>console.error('[V-TRADE TELEGRAM AI] uncaught exception:',e?.stack||e));
+
+let bot;
+try{
+  console.log('[V-TRADE TELEGRAM AI] child boot | token=PRESENT | chat=PRESENT | core='+CORE_URL);
+  bot=new TelegramBot(TOKEN,{polling:{autoStart:false}});
+  bot.on('polling_error',e=>console.error('[V-TRADE TELEGRAM AI] polling error:',e?.message||e));
+  bot.on('error',e=>console.error('[V-TRADE TELEGRAM AI] bot error:',e?.message||e));
+  bot.startPolling().then(()=>console.log('[V-TRADE TELEGRAM AI] polling started | V4 child READY')).catch(e=>console.error('[V-TRADE TELEGRAM AI] polling start failed:',e?.stack||e));
+}catch(e){
+  console.error('[V-TRADE TELEGRAM AI] bot initialization failed:',e?.stack||e);
+  process.exit(1);
+}
+
+let lastKey='',busy=false,newsBusy=false;const seenNews=new Set();
 const num=v=>Number.isFinite(Number(v))?Number(v):null;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const bars=(s,tf)=>Array.isArray(s?.timeframes?.[tf]?.bars)?s.timeframes[tf].bars:[];
@@ -31,19 +47,7 @@ function analyze(m,pre){
   const buy=num(pre?.buyStrengthPct??pre?.buyScore??pre?.buyPct);
   const sell=num(pre?.sellStrengthPct??pre?.sellScore??pre?.sellPct);
   const strength=buy!=null&&sell!=null?Math.round(Math.max(buy,sell)):num(pre?.confidence??pre?.preAiConfidence)??0;
-  const gates={
-    MTF:mtfReady,
-    LIQ:gate(pre,'liquiditySweep','liquiditySweepOk','sweepOk'),
-    MSS:gate(pre,'mss','mssOk','structureAgreement'),
-    BOS:gate(pre,'bos','bosOk'),
-    DISP:gate(pre,'displacement','displacementOk'),
-    FVG:gate(pre,'fvg','fvgOk','freshFvg'),
-    OB:gate(pre,'orderBlock','orderBlockOk','obOk','freshOb'),
-    PD:gate(pre,'premiumDiscountOk','locationOk'),
-    ZONE:gate(pre,'executionZone','executionZoneOk','retest','zoneIsNear'),
-    MOM:gate(pre,'technicalMomentumOk','momentumOk','trendStrengthOk'),
-    SPREAD:gate(pre,'spreadOk')
-  };
+  const gates={MTF:mtfReady,LIQ:gate(pre,'liquiditySweep','liquiditySweepOk','sweepOk'),MSS:gate(pre,'mss','mssOk','structureAgreement'),BOS:gate(pre,'bos','bosOk'),DISP:gate(pre,'displacement','displacementOk'),FVG:gate(pre,'fvg','fvgOk','freshFvg'),OB:gate(pre,'orderBlock','orderBlockOk','obOk','freshOb'),PD:gate(pre,'premiumDiscountOk','locationOk'),ZONE:gate(pre,'executionZone','executionZoneOk','retest','zoneIsNear'),MOM:gate(pre,'technicalMomentumOk','momentumOk','trendStrengthOk'),SPREAD:gate(pre,'spreadOk')};
   const preAll=bool(pre?.gates?.allGatesPassed)||bool(pre?.confirmations?.allGatesPassed)||bool(pre?.execution?.authorization&&pre?.execution?.status==='ENTRY_READY');
   const transition=pre?.workflow?.marketTransition||pre?.marketTransition||{};
   const historicalFriday=transition.fridayContext===true||transition.phase==='SUNDAY_PREOPEN'||transition.phase==='MONDAY_OPEN_WAIT';
@@ -53,13 +57,7 @@ function analyze(m,pre){
   const confidence=clamp(Math.round(num(pre?.confidence??pre?.preAiConfidence??strength)??0),0,100);
   const authorized=m.connected===true&&mtfReady&&bias!=='NEUTRAL'&&preAll&&ictReady&&freshExecution&&confidence>=75;
   let entry=null,stop=null,tp=[];
-  if(authorized&&price!=null){
-    const m15=bars(m,'M15'), recent=m15.slice(-8);
-    if(recent.length){
-      if(bias==='BULLISH'){stop=Math.min(...recent.map(x=>Number(x.l)));const risk=Math.max(price-stop,.5);entry=price;tp=[price+risk*1.5,price+risk*2.5,price+risk*3.5];}
-      else {stop=Math.max(...recent.map(x=>Number(x.h)));const risk=Math.max(stop-price,.5);entry=price;tp=[price-risk*1.5,price-risk*2.5,price-risk*3.5];}
-    }
-  }
+  if(authorized&&price!=null){const m15=bars(m,'M15'),recent=m15.slice(-8);if(recent.length){if(bias==='BULLISH'){stop=Math.min(...recent.map(x=>Number(x.l)));const risk=Math.max(price-stop,.5);entry=price;tp=[price+risk*1.5,price+risk*2.5,price+risk*3.5];}else{stop=Math.max(...recent.map(x=>Number(x.h)));const risk=Math.max(stop-price,.5);entry=price;tp=[price-risk*1.5,price-risk*2.5,price-risk*3.5];}}}
   const reason=historicalFriday?'Friday candle is historical reference; waiting for fresh Monday/live candle.':authorized?'All CORE Pre-Market + ICT gates passed.':pre?.execution?.reason||'Waiting for mandatory CORE Pre-Market confirmation.';
   return {price,bias,directionScore:strength,confidence,signal:authorized?(bias==='BULLISH'?'BUY':'SELL'):'WAIT',authorized,entry,stop,tp,gates,reason,transition:transition.phase||'UNKNOWN',historicalFriday,preAll};
 }
