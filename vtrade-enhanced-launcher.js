@@ -10,6 +10,7 @@ const POST=path.join(ROOT,'pre-market-post-open-ai.js');
 const AUTH_UI=path.join(ROOT,'pre-market-authority-ui-hotfix.js');
 const V9=path.join(ROOT,'pre-market-v9.js');
 const TELEGRAM_SERVICE=path.join(ROOT,'telegram-bot-ai-service-v4.js');
+const TELEGRAM_POLLING_HOTFIX=path.join(ROOT,'telegram-polling-network-hotfix-v1.js');
 const UI_MARK='VTRADE_PREMARKET_INTELLIGENCE_UI_V2';
 const AUTH_UI_MARK='VTRADE_PREMARKET_AUTHORITY_UI_V1';
 const V9_MARK='VTRADE_PREMARKET_V9_UI';
@@ -63,7 +64,10 @@ function startIndependentTelegram(){
   const chat=process.env.TELEGRAM_CHAT_ID||process.env.TELEGRAM_AUTO_CHAT_ID||'';
   if(!token||!chat){console.warn('[V-TRADE TELEGRAM AI] not started: Telegram credentials missing');return;}
   if(!fs.existsSync(TELEGRAM_SERVICE))throw new Error('telegram-bot-ai-service-v4.js not found');
-  const childEnv={...process.env,TELEGRAM_TOKEN:token,TELEGRAM_CHAT_ID:chat,TELEGRAM_AUTO_TOKEN:'',TELEGRAM_AUTO_CHAT_ID:'',TELEGRAM_AUTO_ALERT_ENABLED:'false',VTRADE_CORE_URL:process.env.VTRADE_CORE_URL||`http://127.0.0.1:${process.env.PORT||10000}`,VTRADE_TELEGRAM_SEPARATE:'true'};
+  const existingNodeOptions=String(process.env.NODE_OPTIONS||'').trim();
+  const preload=fs.existsSync(TELEGRAM_POLLING_HOTFIX)?`--require=${TELEGRAM_POLLING_HOTFIX}`:'';
+  const nodeOptions=[existingNodeOptions,preload].filter(Boolean).join(' ');
+  const childEnv={...process.env,TELEGRAM_TOKEN:token,TELEGRAM_CHAT_ID:chat,TELEGRAM_AUTO_TOKEN:'',TELEGRAM_AUTO_CHAT_ID:'',TELEGRAM_AUTO_ALERT_ENABLED:'false',VTRADE_CORE_URL:process.env.VTRADE_CORE_URL||`http://127.0.0.1:${process.env.PORT||10000}`,VTRADE_TELEGRAM_SEPARATE:'true',NODE_OPTIONS:nodeOptions};
   process.env.TELEGRAM_TOKEN='';process.env.TELEGRAM_CHAT_ID='';process.env.TELEGRAM_AUTO_TOKEN='';process.env.TELEGRAM_AUTO_CHAT_ID='';process.env.TELEGRAM_AUTO_ALERT_ENABLED='false';process.env.VTRADE_TELEGRAM_SEPARATE='true';
   console.log('[V-TRADE TELEGRAM SEPARATION] Legacy CORE Telegram Auto Scanner = DISABLED');
   const launch=()=>{
