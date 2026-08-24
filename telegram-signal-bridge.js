@@ -23,6 +23,7 @@ function install(app){
       const feed=(typeof brokerFeed!=='undefined'&&brokerFeed)||null;
       const quote=feed?.quote||{};
       const n=v=>Number.isFinite(Number(v))?Number(v):null;
+      const validPrice=v=>{const x=n(v);return x!=null&&x>0?x:null;};
       const arr=x=>Array.isArray(x)?x:(Array.isArray(x?.candles)?x.candles:Array.isArray(x?.bars)?x.bars:[]);
       const bar=x=>({
         t:n(x?.t??x?.time??x?.timestamp??x?.timeMs),
@@ -34,10 +35,13 @@ function install(app){
         const raw=arr(feed?.timeframes?.[tf]).map(bar).filter(x=>[x.o,x.h,x.l,x.c].every(Number.isFinite));
         timeframes[tf]={bars:raw.slice(-120),count:raw.length,ready:raw.length>=30};
       }
-      const bid=n(quote?.bid??feed?.bid),ask=n(quote?.ask??feed?.ask),last=n(quote?.last??quote?.price??feed?.price??(bid!=null&&ask!=null?(bid+ask)/2:null));
+      const bid=validPrice(quote?.bid??feed?.bid),ask=validPrice(quote?.ask??feed?.ask);
+      const last=validPrice(quote?.last)??validPrice(quote?.price)??validPrice(feed?.price)??(bid!=null&&ask!=null?(bid+ask)/2:null);
+      const fallbackClose=Object.values(timeframes).flatMap(x=>x.bars||[]).map(x=>validPrice(x.c)).filter(x=>x!=null).pop()??null;
+      const price=last??fallbackClose;
       return res.json({
         success:true,source:'BROKER_NATIVE_MT5',contract:'VTRADE_TELEGRAM_MARKET_V3',symbol:String(feed?.symbol||'XAUUSD'),
-        price:last,bid,ask,spread:bid!=null&&ask!=null?Math.max(0,ask-bid):null,
+        price,bid,ask,spread:bid!=null&&ask!=null?Math.max(0,ask-bid):null,
         connected:feed?.connected===true,quoteAgeSec:n(feed?.quoteAgeSec??feed?.ageSec),
         timeframes,generatedAt:new Date().toISOString(),
         telegramRole:'INDEPENDENT_AI_SCAN',preMarketLoaded:false,preMarketAuthority:false,executionLoaded:false
