@@ -19,7 +19,7 @@
 .vtrade-mtf-selectbar{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#080f1b}.vtrade-mtf-selectbar label{color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.vtrade-mtf-selectbar select{min-width:120px;min-height:42px;padding:8px 34px 8px 12px;border:1px solid #29405e;border-radius:10px;background:#09111e;color:#fff;font-weight:900;outline:none}.vtrade-mtf-selectbar select:focus{border-color:#8050ff;box-shadow:0 0 0 2px #8050ff22}.vtrade-mtf-selectbar select option{background:#09111e;color:#fff}@media(max-width:900px){.vtrade-mtf-selectbar{justify-content:stretch;margin-bottom:8px}.vtrade-mtf-selectbar label{min-width:42px}.vtrade-mtf-selectbar select{flex:1;width:100%;min-height:44px}.radar .tf{grid-column:1/-1}}
 </style>
 <script defer src="vtrade-mtf-dropdown.js?v=20260824"></script>
-</head>
+<style id="vtrade-mtf-dropdown-style">.tf-select{min-width:120px;min-height:44px;padding:10px 34px 10px 13px;border:1px solid #8050ff;border-radius:10px;background:#17102e;color:#fff;font-weight:800;outline:none;cursor:pointer}.tf-select option{background:#09111e;color:#fff}@media(max-width:900px){.tf-select{width:100%;min-width:0}}</style><!-- VTRADE_MTF_DROPDOWN_V1 --></head>
 <body>
 <div class="scrim" id="scrim"></div>
 <div class="app">
@@ -44,7 +44,7 @@
   <button class="mobile" id="menu" aria-label="Open menu">☰</button>
   <div class="pair"><span class="star">★</span><div><b>XAUUSD</b><span class="sub" data-i18n="Gold / US Dollar">Gold / US Dollar</span></div></div>
   <div class="price" id="price">—</div><span class="live">● <span data-i18n="LIVE">LIVE</span> · <span id="dir">—</span></span><span class="backend" id="backend">BACKEND CONNECTING</span>
-  <div class="tfs"><button data-tf="M5">M5</button><button data-tf="M15" class="active">M15</button><button data-tf="H1">H1</button><button data-tf="H4">H4</button><button data-tf="D1">D1</button></div>
+  <div class="tfs" id="mtfSelector"><select class="tf-select" id="tfSelect" aria-label="Select timeframe"><option value="M5">M5</option><option value="M15" selected>M15</option><option value="H1">H1</option><option value="H4">H4</option><option value="D1">D1</option></select></div>
   <div class="lang-row"><button class="lang-btn active" id="enBtn">EN</button><button class="lang-btn" id="kmBtn">ខ្មែរ</button></div>
 </header>
 <section class="wrap">
@@ -118,5 +118,5 @@ document.querySelectorAll('.news-filter button').forEach(b=>b.onclick=()=>{docum
 $('refresh').onclick=()=>{load();fetchHeadlines();showToast(lang==='km'?'កំពុង Refresh ទិន្នន័យ…':'Refreshing live data…')};$('api').addEventListener('change',load);document.querySelectorAll('.tfs button').forEach(b=>b.onclick=()=>{selectedTF=String(b.dataset.tf||b.textContent).toUpperCase();document.querySelectorAll('.tfs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(latestAnalysis)renderChart(latestAnalysis);showToast(`${selectedTF} selected`)});
 applyLang();load();fetchHeadlines();setInterval(load,5000);setInterval(fetchHeadlines,60000);setInterval(loadCalendar,15000);setInterval(()=>{if(lastNews)renderCalendar(lastNews)},1000);
 </script>
-<script src="site-connection.js"></script></body>
+<script src="site-connection.js"></script><script id="vtrade-mtf-dropdown-script">(function(){function boot(){const sel=document.getElementById('tfSelect');if(!sel||sel.dataset.ready==='1')return;sel.dataset.ready='1';sel.addEventListener('change',()=>{const tf=String(sel.value||'M15').toUpperCase();window.vtradeSelectedTF=tf;if(typeof window.showToast==='function')window.showToast(tf+' selected');if(typeof window.latestAnalysis==='object'&&window.latestAnalysis&&typeof window.renderChart==='function')window.renderChart(window.latestAnalysis);});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();})();</script></body>
 </html>
