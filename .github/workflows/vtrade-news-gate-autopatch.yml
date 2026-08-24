@@ -1,0 +1,52 @@
+name: V-TRADE News Gate Autopatch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-server:
+    if: ${{ !contains(github.event.head_commit.message, 'news-gate-autopatch') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install authoritative news gate before legacy pre-market engine
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('server.js')
+          s = p.read_text(encoding='utf-8')
+          anchor = "const app = express();\n// V TRADE AI — Pre-Market + 60m Macro/Truth Social engine\n"
+          patch = "const app = express();\n// V-TRADE NEWS V1 — authoritative economic-calendar gate MUST load first\ntry { require('./pre-market-news-calendar-hotfix-v1')(app); } catch (e) { console.error('[V-TRADE NEWS V1] install failed:', e.message); }\n// V TRADE AI — Pre-Market + 60m Macro/Truth Social engine\n"
+          if "pre-market-news-calendar-hotfix-v1" in s:
+              print('News gate already installed.')
+          elif anchor not in s:
+              raise SystemExit('Expected server.js pre-market anchor not found; refusing unsafe patch.')
+          else:
+              p.write_text(s.replace(anchor, patch, 1), encoding='utf-8')
+              print('Authoritative news gate installed before legacy engine.')
+          PY
+
+      - name: Syntax check
+        run: |
+          node --check server.js
+          node --check pre-market-news-calendar-hotfix-v1.js
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "V-TRADE Bot"
+          git config user.email "vtrade-bot@users.noreply.github.com"
+          git add server.js
+          git commit -m "fix: install authoritative news gate before pre-market"
+          git push
