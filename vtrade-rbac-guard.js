@@ -1,8 +1,8 @@
-/* V TRADE AI — Server-authoritative RBAC guard V12 — phone identity hard-hide */
+/* V TRADE AI — Server-authoritative RBAC guard V13 — phone identity hard-hide + unified mobile UI */
 (() => {
   'use strict';
-  if (window.__VTRADE_RBAC_GUARD_V12__) return;
-  window.__VTRADE_RBAC_GUARD_V12__ = true;
+  if (window.__VTRADE_RBAC_GUARD_V13__) return;
+  window.__VTRADE_RBAC_GUARD_V13__ = true;
   const BACKEND='https://forexai-6xw6.onrender.com';
   const file=String(location.pathname.split('/').pop()||'').toLowerCase();
   const isAdminPage=file==='admin-dashboard.html';
@@ -11,7 +11,7 @@
   const token=()=>window.VTRADE_CONNECTION?.token?.()||localStorage.getItem('vtrade_auth_token')||localStorage.getItem('vtrade_auth')||sessionStorage.getItem('vtrade_auth_token')||sessionStorage.getItem('vtrade_auth')||'';
   const isAdminRole=r=>['admin','administrator'].includes(String(r||'').trim().toLowerCase());
   const login=r=>location.replace(`login.html?required=login&reason=${encodeURIComponent(r||'login')}`);
-  const goTerminal=()=>location.replace('premium-dashboard-live.html?v=20260822-rbac-v12');
+  const goTerminal=()=>location.replace('premium-dashboard-live.html?v=20260824-ui-sync-v1');
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   async function verifySession(){
     const t=token();
@@ -38,6 +38,8 @@
       loadScript('vtradePhoneIdentityHardHideScript','vtrade-phone-identity-hard-hide.js?v=20260822-hard1');
       loadScript('vtradeHeaderAuthoritySyncScript','vtrade-header-authority-sync.js?v=20260821-authority');
       loadScript('vtradeBackendStatusSyncScript','vtrade-backend-status-sync.js?v=20260821-backend-truth');
+      loadScript('vtradeCrossUiSyncScript','vtrade-cross-ui-sync.js?v=20260824-sync-v1');
+      loadScript('vtradePhoneI18nScript','vtrade-phone-i18n.js?v=20260824-i18n-v3');
     }
   }
   async function verify(){
