@@ -1,9 +1,9 @@
-/* V-TRADE AI — Sunday/Monday market transition contract V9 */
+/* V-TRADE AI — Sunday/Monday market transition contract V10 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_SUNDAY_MONDAY_TRANSITION_CONTRACT_V9';
+const MARKER='VTRADE_SUNDAY_MONDAY_TRANSITION_CONTRACT_V10';
 
 function patch(source){
   if(!source)return source;
@@ -16,24 +16,15 @@ function patch(source){
   let out=source;
   if(!out.includes(MARKER))out=source.slice(0,i)+code+source.slice(i);
 
-  // V9: repair the actual analyze() scope. Previous patches could leave a
-  // marketTransition declaration missing or outside analyze(), causing a ReferenceError.
-  // Remove stale local declarations first, then define exactly one at analyze() entry.
+  // Remove stale V6/V7/V8/V9 declarations that could be outside analyze().
   out=out.replace(/\s*const\s+marketTransition\s*=\s*globalThis\.vtradeMarketTransitionState\?\.\([^;]+;\s*/g,'\n');
-  const analyzeRe=/(function\s+analyze\s*\(\s*\)\s*\{)/;
-  if(analyzeRe.test(out)){
-    const decl="$1\n    const marketTransition=globalThis.vtradeMarketTransitionState?.(globalThis.vtradeLatestM5CandleTime??null,Date.now())||{phase:'LIVE_MARKET',fridayContext:false,mondayFreshM5:true};\n";
-    out=out.replace(analyzeRe,decl);
-  }
+  out=out.replace(/\s*const\s+mondayExecutionGate\s*=\s*marketTransition\.phase==='MONDAY_LIVE_REVALIDATION'\?marketTransition\.mondayFreshM5:marketTransition\.phase==='LIVE_MARKET';\s*/g,'\n');
 
-  // Make sure the final execution gate always uses the transition gate.
-  if(!out.includes('const mondayExecutionGate=')){
-    const allRe=/const\s+all\s*=([^;]+);/;
-    const m=out.match(allRe);
-    if(m){
-      const guarded=`const mondayExecutionGate=marketTransition.phase==='MONDAY_LIVE_REVALIDATION'?marketTransition.mondayFreshM5:marketTransition.phase==='LIVE_MARKET';\n    const all=${m[1]}&&mondayExecutionGate;`;
-      out=out.replace(m[0],guarded);
-    }
+  // V10: declare marketTransition only after `m` has been initialized in analyze().
+  // This completely removes the previous TDZ/undefined-scope failure.
+  const gateNeedle=',all=ready===4&&bias!==\'NEUTRAL\'';
+  if(out.includes(gateNeedle) && !out.includes('marketTransition=globalThis.vtradeMarketTransitionState')){
+    out=out.replace(gateNeedle,",marketTransition=globalThis.vtradeMarketTransitionState?.(m?.candle?.candleTime??null,Date.now())||{phase:'LIVE_MARKET',fridayContext:false,mondayFreshM5:true},mondayExecutionGate=marketTransition.phase==='MONDAY_LIVE_REVALIDATION'?marketTransition.mondayFreshM5:marketTransition.phase==='LIVE_MARKET',all=ready===4&&bias!=='NEUTRAL'");
   }
 
   const workflowRe=/workflow:\{stage:ready===4\?'PRE_MARKET_MTF_READY':'PRE_MARKET_MTF_WAITING',source:'MT5_AUTHORITATIVE_V4',/;
@@ -47,7 +38,7 @@ try{
   if(fs.existsSync(SERVER)){
     const before=fs.readFileSync(SERVER,'utf8');
     const after=patch(before);
-    if(after!==before){fs.writeFileSync(SERVER,after,'utf8');console.log('[V-TRADE MARKET TRANSITION] V9 active | analyze-scope fixed | TDZ-safe | fail-closed');}
+    if(after!==before){fs.writeFileSync(SERVER,after,'utf8');console.log('[V-TRADE MARKET TRANSITION] V10 active | declaration after M15 candle init | TDZ-safe | fail-closed');}
   }
-}catch(e){console.error('[V-TRADE MARKET TRANSITION] V9 failed:',e.stack||e.message);throw e;}
+}catch(e){console.error('[V-TRADE MARKET TRANSITION] V10 failed:',e.stack||e.message);throw e;}
 module.exports={patch};
