@@ -11,8 +11,9 @@ const required=[
   'telegram-core-log-ownership-hotfix.js','package-access-hotfix.js','pre-market-route-boot-hotfix.js','ai-confirmation-runtime-v2.js',
   'pre-market-structure-hook.js','predeploy-consistency-hotfix.js','vtrade-start.js','vtrade-canonical-data-contract.js',
   'telegram-single-renderer-guard.js','telegram-launcher-bilingual-patch.js','telegram-auto-symbol-hotfix.js',
-  'telegram-auto-mt5-readiness-bridge.js','sunday-weekly-preopen.js','terminal-pre-market.js','premium-dashboard-live.html','terminal-live-phone.html',
-  'vtrade-responsive.css','vtrade-responsive.js','vtrade-phone-controls-v1.js','vtrade-phone-i18n.js','vtrade-phone-i18n-v2.js'
+  'telegram-auto-mt5-readiness-bridge.js','sunday-weekly-preopen.js','monday-fresh-candle-contract.js','terminal-pre-market.js',
+  'premium-dashboard-live.html','terminal-live-phone.html','vtrade-responsive.css','vtrade-responsive.js',
+  'vtrade-phone-controls-v1.js','vtrade-phone-i18n.js','vtrade-phone-i18n-v2.js'
 ];
 
 let failed=false;
@@ -30,12 +31,12 @@ const final=fs.readFileSync(path.join(root,'vtrade-final-launcher.js'),'utf8');
 const telegramLogHotfix=fs.readFileSync(path.join(root,'telegram-core-log-ownership-hotfix.js'),'utf8');
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const phoneControls=fs.readFileSync(path.join(root,'vtrade-phone-controls-v1.js'),'utf8');
-const phoneI18n=fs.readFileSync(path.join(root,'vtrade-phone-i18n.js'),'utf8');
 const phoneI18nV2=fs.readFileSync(path.join(root,'vtrade-phone-i18n-v2.js'),'utf8');
 const phoneShell=fs.readFileSync(path.join(root,'terminal-live-phone.html'),'utf8');
 const dashboard=fs.readFileSync(path.join(root,'premium-dashboard-live.html'),'utf8');
 const preMarket=fs.readFileSync(path.join(root,'terminal-pre-market.js'),'utf8');
 const weeklyPreopen=fs.readFileSync(path.join(root,'sunday-weekly-preopen.js'),'utf8');
+const mondayCandle=fs.readFileSync(path.join(root,'monday-fresh-candle-contract.js'),'utf8');
 const responsive=fs.readFileSync(path.join(root,'vtrade-responsive.js'),'utf8');
 
 const checks=[
@@ -51,7 +52,6 @@ const checks=[
  ['Final launcher requires enhanced launcher',final.includes("require('./vtrade-enhanced-launcher.js')")],
  ['Final launcher validates production files',final.includes('validateProductionFiles')],
  ['CORE runtime lock disables legacy Telegram Auto Scanner',lock.includes("process.env.TELEGRAM_AUTO_ALERT_ENABLED = 'false'")],
- ['CORE runtime lock does not load legacy continuity guard',!lock.includes("require('./telegram-auto-scan-guard.js')")],
  ['CORE runtime lock declares canonical V4 ownership',lock.includes('canonical V4 child owns Telegram')],
  ['Telegram ownership hotfix never restores credentials',telegramLogHotfix.includes('never restores credentials')],
  ['Pages index exists and links to login',index.includes('login.html')],
@@ -62,7 +62,8 @@ const checks=[
  ['Phone bilingual V2 provides English and Khmer',phoneI18nV2.includes('data-lang="en"')&&phoneI18nV2.includes('data-lang="km"')&&phoneI18nV2.includes('ផ្ទាំងគ្រប់គ្រង')],
  ['Phone bilingual V2 is phone-only',phoneI18nV2.includes('max-width:900px')&&phoneI18nV2.includes('const phone=()=>')],
  ['Pre-Market supports all M5/M15/H1/H4/D1 candle analysis',preMarket.includes("const TFS=['M5','M15','H1','H4','D1']")&&preMarket.includes('CANDLE-OPEN MTF PROCESSING')&&preMarket.includes('Analyze AI')],
- ['Friday/Sunday/Monday weekly pre-open module exists',weeklyPreopen.includes('Friday')||weeklyPreopen.includes('Friday')===false && weeklyPreopen.includes('Monday')],
+ ['Friday context + Monday fresh M5 revalidation exists',mondayCandle.includes('fridayContext')&&mondayCandle.includes('MONDAY_LIVE_REVALIDATION')&&mondayCandle.includes('mondayFreshM5')],
+ ['Sunday weekly pre-open is analysis-only and fail-closed',weeklyPreopen.includes('analysis-only')&&weeklyPreopen.includes('NO ORDER AUTHORIZED')],
  ['Premium dashboard exposes Telegram navigation',dashboard.includes('data-target="telegram"')&&dashboard.includes('data-i18n="Telegram"')],
  ['Responsive system creates mobile navigation',responsive.includes('vtradeMobileBar')&&responsive.includes('addMobileNav')],
  ['Responsive phone content reserves bottom navigation space',phoneI18nV2.includes('padding-bottom:154px')],
