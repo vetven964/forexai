@@ -64,6 +64,25 @@ async function analyze(tf){
   console.error('[V-TRADE PHONE V20]',e);
  }
 }
+/* PHONE DRAWER OVERLAY FIX: hide bottom navigation while sidebar is open. */
+function syncPhoneDrawer(){
+ const side=document.getElementById('side');
+ const bar=document.getElementById('vtradeMobileBar');
+ const scrim=document.getElementById('scrim');
+ const open=!!side?.classList.contains('open')||!!side?.classList.contains('vtrade-open');
+ if(bar){bar.style.setProperty('display',open?'none':'','important');bar.setAttribute('aria-hidden',open?'true':'false')}
+ if(scrim&&open){scrim.style.setProperty('z-index','6990','important');scrim.style.setProperty('pointer-events','auto','important')}
+ document.documentElement.classList.toggle('vtrade-phone-drawer-open',open);
+ document.body.classList.toggle('vtrade-phone-drawer-open',open);
+}
+if(!document.getElementById('vtrade-phone-drawer-v20-style')){
+ const st=document.createElement('style');st.id='vtrade-phone-drawer-v20-style';
+ st.textContent=`@media(max-width:900px){body.vtrade-phone-drawer-open{overflow:hidden!important}body.vtrade-phone-drawer-open #vtradeMobileBar{display:none!important}.side.open,.side.vtrade-open{z-index:7000!important}.scrim.show{z-index:6990!important}}`;
+ document.head.appendChild(st);
+}
+syncPhoneDrawer();
+new MutationObserver(syncPhoneDrawer).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class','style']});
+document.addEventListener('click',()=>setTimeout(syncPhoneDrawer,0),true);
 window.VTRADE_PHONE_ANALYZE_V20=analyze;
 window.VTRADE_PHONE_SET_TF_V20=tf=>analyze(tf);
 })();
