@@ -1,0 +1,59 @@
+name: V-TRADE chart contract fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch server and phone/pc chart
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('server.js'); s=p.read_text()
+          if '[V-TRADE CHART CONTRACT V1]' not in s:
+            a="const feedMode='VT Markets MT5',tfs={M1:m1a,M5:m5a,M15:m15a,H1:h1a,H4:h4a,D1:d1a,W1:w1a},a=tfs.M5.atr||5;"
+            b=a+"\n  // [V-TRADE CHART CONTRACT V1] Authoritative broker-native closed candles for PC/Phone.\n  const chartCandles={M1:m1.slice(-300),M5:m5.slice(-300),M15:m15.slice(-300),H1:h1.slice(-300),H4:h4.slice(-300),D1:d1.slice(-300),W1:w1.slice(-300)};\n  for (const [tf,candles] of Object.entries(chartCandles)) if (tfs[tf]) tfs[tf].candles=candles;"
+            if a not in s: raise SystemExit('server chart anchor not found')
+            s=s.replace(a,b,1)
+            s=s.replace('news,timeframes:tfs,mtf:{','news,timeframes:tfs,chartCandles,mtf:{',1)
+            p.write_text(s)
+          p=Path('premium-dashboard-live.html'); s=p.read_text()
+          if 'VTRADE_CHART_TF_V1' not in s:
+            s=s.replace("let API=localStorage.getItem('vtrade_api')||$('api').value;let lang=localStorage.getItem('vtrade_lang')||'en';let newsItems=[];let newsFilter='ALL';let lastNews=null;", "let API=localStorage.getItem('vtrade_api')||$('api').value;let lang=localStorage.getItem('vtrade_lang')||'en';let newsItems=[];let newsFilter='ALL';let lastNews=null;let selectedTF='M15';let latestAnalysis=null;/* VTRADE_CHART_TF_V1 */",1)
+            old="function renderChart(a){const candles=a.timeframes?.M15?.candles||a.timeframes?.M15?.bars||[];const arr=Array.isArray(candles)?candles.slice(-40).map(x=>Number(x.close??x.c??x[4])).filter(Number.isFinite):[];if(arr.length<3){$('chart').innerHTML='<div class=\"empty\">Live candles unavailable — feed status remains authoritative</div>';return}const min=Math.min(...arr),max=Math.max(...arr),range=max-min||1;const pts=arr.map((v,i)=>`${(i/(arr.length-1))*100},${96-((v-min)/range)*82}`).join(' ');$('chart').innerHTML=`<svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\"><polyline fill=\"none\" stroke=\"#35d8ff\" stroke-width=\"1.5\" points=\"${pts}\"/></svg>`}"
+            new="function renderChart(a){const tf=selectedTF;const src=a.chartCandles?.[tf]||a.timeframes?.[tf]?.candles||a.timeframes?.[tf]?.bars||[];const arr=Array.isArray(src)?src.slice(-60).map(x=>Number(x.close??x.c??x[4])).filter(Number.isFinite):[];if(arr.length<3){$('chart').innerHTML=`<div class=\"empty\">${escapeHtml(tf)} candles unavailable — MT5 feed remains authoritative</div>`;return}const min=Math.min(...arr),max=Math.max(...arr),range=max-min||1;const pts=arr.map((v,i)=>`${(i/(arr.length-1))*100},${96-((v-min)/range)*82}`).join(' ');$('chart').innerHTML=`<div class=\"chart-caption\">${tf} · ${arr.length} closed candles · MT5 LIVE</div><svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\"><polyline fill=\"none\" stroke=\"#35d8ff\" stroke-width=\"1.5\" points=\"${pts}\"/></svg>`}"
+            if old not in s: raise SystemExit('frontend chart anchor not found')
+            s=s.replace(old,new,1)
+            s=s.replace('function render(a){const price=', 'function render(a){latestAnalysis=a;const price=',1)
+            oldb="document.querySelectorAll('.tfs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tfs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');showToast(`${b.textContent} selected`)});"
+            newb="document.querySelectorAll('.tfs button').forEach(b=>b.onclick=()=>{selectedTF=String(b.dataset.tf||b.textContent).toUpperCase();document.querySelectorAll('.tfs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(latestAnalysis)renderChart(latestAnalysis);showToast(`${selectedTF} selected`)});"
+            if oldb not in s: raise SystemExit('frontend TF anchor not found')
+            s=s.replace(oldb,newb,1)
+            p.write_text(s)
+      - name: Verify
+        run: |
+          node --check server.js
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          s=Path('premium-dashboard-live.html').read_text()
+          js='\n'.join(re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I))
+          Path('/tmp/frontend.js').write_text(js)
+          subprocess.run(['node','--check','/tmp/frontend.js'],check=True)
+          assert 'chartCandles' in Path('server.js').read_text()
+          assert 'VTRADE_CHART_TF_V1' in s
+          print('V-TRADE CHART CONTRACT TEST=PASS')
+          PY
+      - name: Commit and remove patch workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server.js premium-dashboard-live.html .github/workflows/vtrade-chart-contract-fix.yml
+          git rm .github/workflows/vtrade-chart-contract-fix.yml
+          git commit -m 'fix: restore live MTF chart candles and TF selection' || exit 0
+          git push
