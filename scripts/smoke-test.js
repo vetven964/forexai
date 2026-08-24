@@ -1,11 +1,11 @@
 'use strict';
 const fs=require('fs'),path=require('path'),cp=require('child_process');
 const root=path.resolve(__dirname,'..');let failed=false;
-const required=['package.json','package-lock.json','render.yaml','server.js','vtrade-final-launcher.js','vtrade-enhanced-launcher.js','vtrade-runtime-env-lock.js','telegram-bot-ai-service-v4.js','telegram-signal-bridge.js','telegram-core-log-ownership-hotfix.js','terminal-pre-market.js','sunday-weekly-preopen.js','monday-fresh-candle-contract.js','premium-dashboard-live.html','terminal-live-phone.html','vtrade-phone-controls-v1.js','vtrade-phone-interaction-v16.js','vtrade-phone-i18n-v2.js','vtrade-responsive.js','vtrade-responsive.css'];
+const required=['package.json','package-lock.json','render.yaml','server.js','vtrade-final-launcher.js','vtrade-enhanced-launcher.js','vtrade-runtime-env-lock.js','telegram-bot-ai-service-v4.js','telegram-signal-bridge.js','telegram-core-log-ownership-hotfix.js','terminal-pre-market.js','sunday-weekly-preopen.js','monday-fresh-candle-contract.js','premium-dashboard-live.html','terminal-live-phone.html','vtrade-phone-controls-v1.js','vtrade-phone-interaction-v16.js','vtrade-phone-i18n-v2.js','vtrade-phone-layout-v1.css','vtrade-responsive.js','vtrade-responsive.css'];
 for(const f of required){const ok=fs.existsSync(path.join(root,f));console.log(`[SMOKE] ${ok?'PASS':'FAIL'} required: ${f}`);if(!ok)failed=true;}
 for(const f of required.filter(f=>f.endsWith('.js'))){const r=cp.spawnSync(process.execPath,['--check',path.join(root,f)],{encoding:'utf8'});const ok=r.status===0;console.log(`[SMOKE] ${ok?'PASS':'FAIL'} syntax: ${f}`);if(!ok){console.error(r.stderr||r.stdout);failed=true;}}
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
-const pkg=JSON.parse(read('package.json')),render=read('render.yaml'),lock=read('vtrade-runtime-env-lock.js'),enhanced=read('vtrade-enhanced-launcher.js'),final=read('vtrade-final-launcher.js'),tg=read('telegram-core-log-ownership-hotfix.js'),phone=read('terminal-live-phone.html'),controls=read('vtrade-phone-controls-v1.js'),interaction=read('vtrade-phone-interaction-v16.js'),i18n=read('vtrade-phone-i18n-v2.js'),pre=read('terminal-pre-market.js'),monday=read('monday-fresh-candle-contract.js'),weekly=read('sunday-weekly-preopen.js'),dash=read('premium-dashboard-live.html');
+const pkg=JSON.parse(read('package.json')),render=read('render.yaml'),lock=read('vtrade-runtime-env-lock.js'),enhanced=read('vtrade-enhanced-launcher.js'),final=read('vtrade-final-launcher.js'),tg=read('telegram-core-log-ownership-hotfix.js'),phone=read('terminal-live-phone.html'),controls=read('vtrade-phone-controls-v1.js'),interaction=read('vtrade-phone-interaction-v16.js'),i18n=read('vtrade-phone-i18n-v2.js'),layout=read('vtrade-phone-layout-v1.css'),pre=read('terminal-pre-market.js'),monday=read('monday-fresh-candle-contract.js'),weekly=read('sunday-weekly-preopen.js'),dash=read('premium-dashboard-live.html');
 const checks=[
 ['start uses final launcher',pkg.scripts?.start==='node vtrade-final-launcher.js'],
 ['Telegram script uses canonical V4',pkg.scripts?.['telegram:ai']==='node telegram-bot-ai-service-v4.js'],
@@ -17,14 +17,15 @@ const checks=[
 ['legacy Telegram Auto Scanner stays disabled',lock.includes("TELEGRAM_AUTO_ALERT_ENABLED = 'false'")],
 ['Telegram ownership remains fail-safe',tg.includes('never restores credentials')],
 ['Phone shell contains pre-market + Telegram routes',phone.includes('phone-pre-market=all')&&phone.includes('phone-telegram=all')],
-['Phone shell loads V17 interaction',phone.includes('vtrade-phone-interaction-v17.js?v=20260824-v17')],
+['Phone shell loads V18 interaction + layout',phone.includes('phone-interaction=v18')&&phone.includes('vtrade-phone-interaction-v16.js?v=20260824-v18')&&phone.includes('vtrade-phone-layout-v1.css?v=20260824-v1')],
 ['Phone controls expose M5/M15/H1/H4/D1',controls.includes("const TFS=['M5','M15','H1','H4','D1']")],
 ['Phone controls expose Analyze AI',controls.includes('Analyze AI')],
 ['Phone controls support touchend',controls.includes('touchend')],
-['V17 uses the real XAUUSD pre-market route',interaction.includes('/api/pre-market/xauusd')&&!interaction.includes('/api/pre-market/mt5-authoritative')],
-['V17 fetches selected-TF AI confirmation',interaction.includes('/api/pre-market/ai?tf=')],
-['V17 direct-delegates V91 controls',interaction.includes('data-v91tf')&&interaction.includes('v91Analyze')],
-['V17 phone-only guard',interaction.includes('max-width:900px')],
+['V17/V18 uses the real XAUUSD pre-market route',interaction.includes('/api/pre-market/xauusd')&&!interaction.includes('/api/pre-market/mt5-authoritative')],
+['Selected-TF AI confirmation route exists',interaction.includes('/api/pre-market/ai?tf=')],
+['Direct V91 control delegation exists',interaction.includes('data-v91tf')&&interaction.includes('v91Analyze')],
+['Phone-only guard exists',interaction.includes('max-width:900px')],
+['Dedicated phone layout protects MTF cards',layout.includes('.v91tf>strong')&&layout.includes('.v91tf>span:nth-of-type(2)')],
 ['Phone i18n contains Khmer + English',i18n.includes('data-lang="en"')&&i18n.includes('data-lang="km"')],
 ['Pre-Market supports all five TFs',pre.includes("const TFS=['M5','M15','H1','H4','D1']")],
 ['Friday context + fresh Monday M5',monday.includes('fridayContext')&&monday.includes('MONDAY_LIVE_REVALIDATION')&&monday.includes('mondayFreshM5')],
