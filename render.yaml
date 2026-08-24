@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install
-    startCommand: node --require ./vtrade-runtime-env-lock.js vtrade-enhanced-launcher.js
+    startCommand: node --require ./vtrade-runtime-env-lock.js vtrade-final-launcher.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
