@@ -37,7 +37,11 @@ function firstTag(xml,tag){
 }
 function parseFeed(xml,source){
   const out=[];
-  const blocks=String(xml).match(/<item[\\s\\S]*?<\\/item>/gi)||String(xml).match(/<entry[\\s\\S]*?<\\/entry>/gi)||[];
+  // IMPORTANT: these are RegExp literals. Keep single backslashes here.
+  // Using [\\s\\S] inside a regex literal causes Node to parse the trailing
+  // characters incorrectly and throws "Invalid regular expression flags".
+  const text=String(xml);
+  const blocks=text.match(/<item[\s\S]*?<\/item>/gi)||text.match(/<entry[\s\S]*?<\/entry>/gi)||[];
   for(const b of blocks.slice(0,20)){
     const title=firstTag(b,'title');
     const description=firstTag(b,'description')||firstTag(b,'summary')||'';
@@ -65,7 +69,6 @@ function scoreNews(item){
   if(score>0)reason='ព័ត៌មានបែប Dovish / Risk-off អាចជួយគាំទ្រតម្លៃមាស';
   if(score<0)reason='ព័ត៌មានបែប Hawkish / អត្រាការប្រាក់ឬ Yield ខ្ពស់ អាចដាក់សម្ពាធលើមាស';
 
-  // News is a pre-market bias layer, never an order authorization layer.
   let decision='IGNORE';
   let tradeBias='NEUTRAL';
   let entryBlocked=true;
@@ -126,7 +129,7 @@ function biasText(bias){
 }
 
 function formatNews(items){
-  if(!items.length)return '📰 *V TRADE AI — ព័ត៌មានសេដ្ឋកិច្ច\\n\\nមិនមានព័ត៌មានសំខាន់ថ្មីទេ។';
+  if(!items.length)return '📰 *V TRADE AI — ព័ត៌មានសេដ្ឋកិច្ច*\\n\\nមិនមានព័ត៌មានសំខាន់ថ្មីទេ។';
   const lines=['📰 *V TRADE AI — ព័ត៌មានសេដ្ឋកិច្ចមុនផ្សារ*',''];
   for(const n of items.slice(0,5)){
     lines.push(impactLabel(n.impact));
