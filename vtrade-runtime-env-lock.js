@@ -45,6 +45,13 @@ try { require('./vtrade-canonical-signal-authority-v1.js'); } catch (e) {
   process.exitCode = 1;
 }
 
+// Canonical UI must consume the same H4/H1/M15 direction truth before the
+// launcher installs its JS loader. This prevents score-only UI labels.
+try { require('./vtrade-ui-canonical-direction-zone-hotfix-v1.js'); } catch (e) {
+  console.error('[V-TRADE UI AUTHORITY] preload failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
+
 try { require('./telegram-single-renderer-guard.js'); } catch (e) {
   console.error('[V-TRADE TELEGRAM] single renderer preload failed:', e.stack || e.message);
   process.exitCode = 1;
