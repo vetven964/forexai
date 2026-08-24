@@ -1,10 +1,10 @@
 // V-TRADE AI — Telegram Auto Scanner watchdog / startup hotfix
-// V-TRADE V16 — confirmed-entry delivery guard + directional execution + target-spacing validation
+// V-TRADE V17 — Pre-Market-authoritative confirmed-entry delivery guard
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const serverFile = path.join(__dirname, 'server.js');
-const marker = 'VTRADE_TELEGRAM_AUTO_WATCHDOG_V16_SAFE';
+const marker = 'VTRADE_TELEGRAM_AUTO_WATCHDOG_V17_PREMARKET_AUTHORITY';
 const READINESS = 'globalThis.__vtradeTelegramAutoReadinessLog';
 
 try {
@@ -20,8 +20,6 @@ function patchServer() {
   let source = fs.readFileSync(serverFile, 'utf8');
   let changed = false;
 
-  // Repair malformed declarations produced by older readiness patches BEFORE
-  // replacing legacy references. Never allow `let globalThis.foo = ...`.
   const malformedGlobalDecl = new RegExp('\\b(?:let|const|var)\\s+' + READINESS.replace('.', '\\.') + '\\s*=\\s*([^;]*);', 'g');
   if (malformedGlobalDecl.test(source)) {
     source = source.replace(malformedGlobalDecl, READINESS + ' = $1;');
@@ -30,15 +28,13 @@ function patchServer() {
   }
 
   if (source.indexOf('telegramAutoLastReadinessLog') >= 0) {
-    // Replace the identifier, then explicitly remove any declaration keyword
-    // that could have been attached to it by a legacy patch.
     source = source.split('telegramAutoLastReadinessLog').join(READINESS);
     source = source.replace(new RegExp('\\b(?:let|const|var)\\s+' + READINESS.replace('.', '\\.') + '\\s*=', 'g'), READINESS + ' =');
     changed = true;
     console.log('[V-TRADE SAFETY] Telegram readiness state normalized to global runtime slot');
   }
   if (source.indexOf(READINESS + " = String(" + READINESS + " || '')") < 0) {
-    source = "// VTRADE_TELEGRAM_AUTO_WATCHDOG_V16_SAFE\n" + READINESS + " = String(" + READINESS + " || '');\n" + source;
+    source = "// VTRADE_TELEGRAM_AUTO_WATCHDOG_V17_PREMARKET_AUTHORITY\n" + READINESS + " = String(" + READINESS + " || '');\n" + source;
     changed = true;
   }
 
@@ -81,13 +77,25 @@ try {
     changed = true;
   }
 
-  const deliveryMarker = 'VTRADE_TELEGRAM_CONFIRMED_ENTRY_DELIVERY_V6';
+  const deliveryMarker = 'VTRADE_TELEGRAM_CONFIRMED_ENTRY_DELIVERY_V7';
   if (source.indexOf(deliveryMarker) < 0) {
     const deliveryFn = `
 // ${deliveryMarker}
 globalThis.maybeTelegramAlert = async function(a, tg) {
   const signal = String(a && a.signal || '').toUpperCase();
   const status = String(a && a.status || '').toUpperCase();
+  const pre = globalThis.__vtradePreMarketGate || null;
+  const preReady = pre && pre.success === true && Number(pre.available || 0) >= 4;
+  const preAll = pre?.gates?.allGatesPassed === true;
+  const preEntryReady = pre?.execution?.status === 'ENTRY_READY' && pre?.execution?.authorization === true;
+
+  // Telegram delivery is now fail-closed against the same Pre-Market ICT authority
+  // displayed in the dashboard. A legacy/AI-only BUY/SELL can never bypass it.
+  if (!preReady || !preAll || !preEntryReady) {
+    console.log('[TELEGRAM AUTO] BLOCKED by Pre-Market authority | ready=' + !!preReady + ' | allGates=' + !!preAll + ' | entryReady=' + !!preEntryReady + ' | reason=' + String(pre?.execution?.reason || pre?.error || 'PREMARKET_NOT_AUTHORIZED'));
+    return false;
+  }
+
   const confirmed = (signal === 'BUY' || signal === 'SELL') &&
     status.indexOf('ENTRY CONFIRMED') >= 0 &&
     a && a.confirmations && a.confirmations.allGatesPassed === true &&
@@ -155,7 +163,7 @@ globalThis.maybeTelegramAlert = async function(a, tg) {
   if (source.indexOf(marker) < 0) { source = '// ' + marker + '\n' + source; changed = true; }
   if (changed) fs.writeFileSync(serverFile, source, 'utf8');
 
-  console.log('[V-TRADE TELEGRAM WATCHDOG] active | scanner=' + (String(process.env.TELEGRAM_AUTO_ALERT_ENABLED || 'true').toLowerCase() === 'true') + ' | mainBot=' + (process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID ? 'configured' : 'not-configured') + ' | autoBot=' + (process.env.TELEGRAM_AUTO_TOKEN && process.env.TELEGRAM_AUTO_CHAT_ID ? 'configured' : 'NOT_CONFIGURED') + ' | first-scan=interval | PreMarket=SEPARATE');
+  console.log('[V-TRADE TELEGRAM WATCHDOG] active | scanner=' + (String(process.env.TELEGRAM_AUTO_ALERT_ENABLED || 'true').toLowerCase() === 'true') + ' | mainBot=' + (process.env.TELEGRAM_TOKEN && process.env.TELEGRAM_CHAT_ID ? 'configured' : 'not-configured') + ' | autoBot=' + (process.env.TELEGRAM_AUTO_TOKEN && process.env.TELEGRAM_AUTO_CHAT_ID ? 'configured' : 'NOT_CONFIGURED') + ' | PreMarket=AUTHORITY | FridayHistory=REFERENCE_ONLY | MondayFreshM5=REQUIRED');
 }
 
 patchServer();
