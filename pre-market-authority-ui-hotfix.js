@@ -101,11 +101,8 @@
   function boot(){
     install();
     syncTruth();
+    [1000,3000,6000].forEach(ms=>setTimeout(syncTruth,ms));
     setInterval(syncTruth,15000);
-    const observer=new MutationObserver(()=>{
-      syncTruth();
-    });
-    observer.observe(document.documentElement,{childList:true,subtree:true});
   }
 
   if(!install()){
