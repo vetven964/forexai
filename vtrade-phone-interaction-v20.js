@@ -1,23 +1,69 @@
 /* V TRADE AI — PHONE INTERACTION V20
- * Phone-only interaction owner for M5/M15/H1/H4/D1 + Analyze AI.
- * Delegates to the existing native V91 renderer and keeps MT5/ICT logic untouched.
+ * Phone-only, self-contained interaction owner.
+ * M5/M15/H1/H4/D1 + Analyze AI use the live pre-market API directly.
+ * No dependency on hidden desktop handlers.
  */
 (()=>{
 'use strict';
-if(!window.matchMedia||!matchMedia('(max-width:900px)').matches||window.__VTRADE_PHONE_INTERACTION_V20__)return;
+if(!window.matchMedia || !window.matchMedia('(max-width:900px)').matches || window.__VTRADE_PHONE_INTERACTION_V20__) return;
 window.__VTRADE_PHONE_INTERACTION_V20__=true;
 const TFS=['M5','M15','H1','H4','D1'];
-const text=el=>(el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();
-const getHost=()=>document.getElementById('vtradePreMarket');
-const findNative=(tf)=>getHost()?.querySelector(`[data-v91tf="${tf}"]`);
-const nativeActive=()=>getHost()?.querySelector('.v91b.on')?.getAttribute('data-v91tf')||'M15';
-function fire(el){if(!el)return false;try{el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));return true}catch(_){try{el.click();return true}catch(e){return false}}}
-function activate(tf){if(!TFS.includes(tf))return false;const b=findNative(tf);if(!b)return false;if(typeof PointerEvent==='function'){try{b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'touch'}));b.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,cancelable:true,pointerType:'touch'}))}catch(_){}}return fire(b)}
-function analyze(){const h=getHost();if(!h)return false;const b=h.querySelector('#v91Analyze')||[...h.querySelectorAll('button,a')].find(x=>/analy[sz]e\s*ai/i.test(text(x)));return fire(b)}
-function syncSelect(){const s=document.querySelector('#vtradePhoneTfHost select');if(!s)return;const tf=nativeActive();if(TFS.includes(tf)&&s.value!==tf)s.value=tf}
-function wire(){const host=document.getElementById('vtradePhoneTfHost');if(!host||host.dataset.v20==='1')return;host.dataset.v20='1';const s=host.querySelector('select');const b=host.querySelector('button');if(s){const go=e=>{e.preventDefault();e.stopPropagation();const tf=s.value;if(TFS.includes(tf)){activate(tf);setTimeout(syncSelect,80)}};s.addEventListener('change',go,{capture:true});s.addEventListener('input',go,{capture:true});s.addEventListener('pointerup',e=>e.stopPropagation(),{capture:true})}if(b){const go=e=>{e.preventDefault();e.stopPropagation();const tf=TFS.includes(s?.value)?s.value:nativeActive();activate(tf);setTimeout(analyze,120)};b.addEventListener('click',go,{capture:true});b.addEventListener('pointerup',go,{capture:true});b.addEventListener('touchend',go,{capture:true,passive:false})}}
-function hardenNative(){const h=getHost();if(!h)return;h.querySelectorAll('[data-v91tf]').forEach(el=>{el.style.setProperty('pointer-events','auto','important');el.style.setProperty('touch-action','manipulation','important')});const a=h.querySelector('#v91Analyze');if(a){a.style.setProperty('pointer-events','auto','important');a.style.setProperty('touch-action','manipulation','important')}syncSelect()}
-function run(){if(!matchMedia('(max-width:900px)').matches)return;wire();hardenNative()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
-new MutationObserver(run).observe(document.body,{childList:true,subtree:true});window.addEventListener('resize',run,{passive:true});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>Number.isFinite(Number(v))?Number(v):null;
+const fmt=v=>num(v)==null?'—':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const host=()=>document.getElementById('vtradePreMarket');
+const conn=()=>window.VTRADE_CONNECTION;
+async function get(path){
+ const c=conn();
+ if(!c?.fetch || !c?.api) throw Error('Backend connection layer unavailable');
+ const r=await c.fetch(c.api(path),{credentials:'omit',cache:'no-store',mode:'cors'});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok || d?.success===false) throw Error(d?.error||`HTTP ${r.status}`);
+ return d;
+}
+function row(s,tf){return s?.timeframes?.[tf]||s?.frames?.[tf]||s?.mtf?.timeframes?.[tf]||s?.mtf?.[tf]||s?.analysis?.timeframes?.[tf]||{};}
+function panel(){
+ const h=host(); if(!h) return null;
+ let p=document.getElementById('vtradePhoneSelectedTF');
+ if(!p){p=document.createElement('div');p.id='vtradePhoneSelectedTF';p.className='vtrade-phone-result';h.insertBefore(p,h.firstChild)}
+ return p;
+}
+function setSelect(tf){const s=document.querySelector('#vtradePhoneTfHost select');if(s&&TFS.includes(tf))s.value=tf}
+function setActiveNative(tf){
+ const h=host(); const b=h?.querySelector(`[data-v91tf="${tf}"]`); if(!b) return false;
+ try{b.click();return true}catch(_){try{b.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));return true}catch(e){return false}}
+}
+function busy(tf){const p=panel();if(p)p.innerHTML=`<div class="vtrade-phone-result-head"><b>Selected TF · ${esc(tf)}</b><b class="cyan">ANALYZING…</b></div><div class="vtrade-phone-muted">Loading live MT5 XAUUSD data…</div>`}
+function render(s,tf,ai){
+ const p=panel(); if(!p)return;
+ const r=row(s,tf), c=r.candle||r.openCandle||r.lastCandle||{};
+ const bias=String(r.bias||r.direction||s?.bias||'NEUTRAL').toUpperCase();
+ const score=num(r.directionScore??r.score??s?.directionScore);
+ const buy=num(r.buyPct??r.buyStrengthPct??r.buyScore??s?.buyStrengthPct);
+ const sell=num(r.sellPct??r.sellStrengthPct??r.sellScore??s?.sellStrengthPct);
+ const ac=ai?.ai||ai||{};
+ const decision=String(ac.decision||ac.signal||'WAIT').toUpperCase();
+ const color=decision.includes('BUY')?'green':decision.includes('SELL')?'red':'gold';
+ const gates=r.gates||r.confirmations||s?.gates||s?.confirmations||{};
+ const keys=['liquiditySweep','mss','bos','displacement','fvg','orderBlock','premiumDiscountOk','executionZone','technicalMomentumOk','spreadOk'];
+ const passed=keys.filter(k=>gates[k]===true||String(gates[k]).toUpperCase()==='PASS').length;
+ const candle={open:c.open??r.open,high:c.high??r.high,low:c.low??r.low,close:c.close??r.close};
+ p.innerHTML=`<div class="vtrade-phone-result-head"><b>Selected TF · ${esc(tf)}</b><b class="${color}">${esc(decision)}</b></div><div>MTF Bias: <b class="${bias==='BULLISH'?'green':bias==='BEARISH'?'red':'gold'}">${esc(bias)}</b> · Score ${score??'—'}/100</div><div>BUY ${buy??'—'}% · SELL ${sell??'—'}%</div><div><b>Open Candle</b> · O ${fmt(candle.open)} · H ${fmt(candle.high)} · L ${fmt(candle.low)} · C ${fmt(candle.close)}</div><div><b>ICT Gates</b> · ${passed}/10 passed · MT5 live</div>${ac.confidence!=null?`<div><b>AI Confirmation</b> · ${num(ac.confidence)}/100</div>`:''}<div class="vtrade-phone-muted">AI confirmation only · no order authorization.</div>`;
+}
+async function analyze(tf){
+ tf=TFS.includes(tf)?tf:'M15'; setSelect(tf); setActiveNative(tf); busy(tf);
+ try{
+  const s=await get(`/api/pre-market/xauusd?_=${Date.now()}`);
+  let ai=null;
+  try{ai=await get(`/api/pre-market/ai?tf=${encodeURIComponent(tf)}&_=${Date.now()}`)}catch(e){console.warn('[V-TRADE PHONE V20] optional AI unavailable:',e?.message||e)}
+  render(s,tf,ai);
+  document.dispatchEvent(new CustomEvent('vtrade:phone-timeframe',{detail:{tf,data:s,ai}}));
+ }catch(e){
+  const p=panel();
+  if(p)p.innerHTML=`<div class="vtrade-phone-result-head"><b>Selected TF · ${esc(tf)}</b><b class="red">ERROR</b></div><div class="red">${esc(e?.message||e)}</div><div class="vtrade-phone-muted">No fabricated market data or signal.</div>`;
+  console.error('[V-TRADE PHONE V20]',e);
+ }
+}
+window.VTRADE_PHONE_ANALYZE_V20=analyze;
+window.VTRADE_PHONE_SET_TF_V20=tf=>analyze(tf);
 })();
