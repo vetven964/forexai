@@ -74,7 +74,6 @@ function startIndependentTelegram(){
     child.on('error',e=>console.error('[V-TRADE TELEGRAM AI] child error:',e.message));
     global.__vtradeTelegramChild=child;
   };
-  // CORE must finish binding/listening before the Telegram child starts polling/fetching.
   setTimeout(launch,8000);
   console.log('[V-TRADE PROCESS SEPARATION] CORE=PRE-MARKET/AI | TELEGRAM=COMPACT-V4 CHILD | delayed=8000ms');
 }
@@ -82,12 +81,13 @@ installDashboardUI();
 installTelegramBridge();
 installNewsCalendarGate();
 try{require('./package-access-hotfix.js');console.log('[V-TRADE START] Package/RBAC access gate loaded');}catch(e){console.error('[V-TRADE PACKAGE] FATAL:',e.stack||e.message);throw e;}
-try{require('./pre-market-route-boot-hotfix.js');console.log('[V-TRADE START] Pre-Market route boot hotfix loaded');}catch(e){console.error('[V-TRADE PRE-MARKET] FATAL boot hotfix:',e.stack||e.message);throw e;}
+try{require('./pre-market-route-boot-hotfix.js');console.log('[V-TRADE START] Pre-Market route boot hotfix loaded');}catch(e){console.error('[V-TRADE PRE-MARKET] FATAL:',e.stack||e.message);throw e;}
 try{require('./ai-confirmation-runtime-v2.js');console.log('[V-TRADE START] AI Confirmation Runtime V3 bootstrapped');}catch(e){console.error('[V-TRADE AI] FATAL:',e.stack||e.message);throw e;}
 require('./pre-market-structure-hook.js');
 require('./predeploy-consistency-hotfix.js');
 require('./vtrade-start.js');
 try{require('./telegram-core-log-ownership-hotfix.js');}catch(e){console.error('[V-TRADE TELEGRAM] log ownership hotfix failed:',e.message);throw e;}
+// Disable the legacy server-launcher Telegram card before server-launcher compiles server.js.
+require('./telegram-single-renderer-lock.js');
 require('./server-launcher.js');
-// Start Telegram only after the CORE server has had time to bind and expose its feed routes.
 startIndependentTelegram();
