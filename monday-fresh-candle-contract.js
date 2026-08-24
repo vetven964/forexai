@@ -1,9 +1,9 @@
-/* V-TRADE AI — Sunday/Monday market transition contract V11 */
+/* V-TRADE AI — Sunday/Monday market transition contract V12 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_SUNDAY_MONDAY_TRANSITION_CONTRACT_V11';
+const MARKER='VTRADE_SUNDAY_MONDAY_TRANSITION_CONTRACT_V12';
 
 const day=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Phnom_Penh',weekday:'short'});
 
@@ -34,7 +34,7 @@ function patch(source){
   const i=source.indexOf(anchor);
   if(i<0)return source;
 
-  const code=`\n/* ${MARKER} */\n(function installSundayMondayTransition(){\n  globalThis.vtradeMarketTransitionState=function(candleTime,nowMs){\n    return (${getMarketTransitionState.toString()})(candleTime,nowMs);\n  };\n  globalThis.vtradeMondayExecutionFreshTime=${freshMondayM5.toString()};\n})();\n`;
+  const code=`\n/* ${MARKER} */\n(function installSundayMondayTransition(){\n  const transitionDay=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Phnom_Penh',weekday:'short'});\n  function freshMondayM5(candleTime,nowMs=Date.now()){\n    const t=Number(candleTime);\n    if(!Number.isFinite(t))return false;\n    const ms=t<1e12?t*1000:t;\n    return transitionDay.format(new Date(nowMs))==='Mon' && transitionDay.format(new Date(ms))==='Mon' && nowMs-ms>=0 && nowMs-ms<=10*60*1000;\n  }\n  globalThis.vtradeMarketTransitionState=function(candleTime,nowMs=Date.now()){\n    const d=transitionDay.format(new Date(nowMs));\n    const fresh=freshMondayM5(candleTime,nowMs);\n    return {phase:d==='Sun'?'SUNDAY_PREOPEN':d==='Mon'?(fresh?'MONDAY_LIVE_REVALIDATION':'MONDAY_OPEN_WAIT'):'LIVE_MARKET',fridayContext:d==='Sun'||(d==='Mon'&&!fresh),mondayFreshM5:fresh,candleTime:Number.isFinite(Number(candleTime))?Number(candleTime):null,timezone:'Asia/Phnom_Penh'};\n  };\n  globalThis.vtradeMondayExecutionFreshTime=freshMondayM5;\n})();\n`;
 
   let out=source;
   if(!out.includes(MARKER))out=source.slice(0,i)+code+source.slice(i);
@@ -59,9 +59,9 @@ if(process.env.VTRADE_TELEGRAM_CHILD!=='1'){
     if(fs.existsSync(SERVER)){
       const before=fs.readFileSync(SERVER,'utf8');
       const after=patch(before);
-      if(after!==before){fs.writeFileSync(SERVER,after,'utf8');console.log('[V-TRADE MARKET TRANSITION] V11 active | declaration after M15 candle init | TDZ-safe | fail-closed');}
+      if(after!==before){fs.writeFileSync(SERVER,after,'utf8');console.log('[V-TRADE MARKET TRANSITION] V12 active | injected scope self-contained | TDZ-safe | fail-closed');}
     }
-  }catch(e){console.error('[V-TRADE MARKET TRANSITION] V11 failed:',e.stack||e.message);throw e;}
+  }catch(e){console.error('[V-TRADE MARKET TRANSITION] V12 failed:',e.stack||e.message);throw e;}
 }else{
   console.log('[V-TRADE MARKET TRANSITION] TELEGRAM READ-ONLY | CORE server patch skipped | transition context available');
 }
