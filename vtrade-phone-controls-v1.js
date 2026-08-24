@@ -7,7 +7,6 @@
 'use strict';
 if(!window.matchMedia||!matchMedia('(max-width:900px)').matches||window.__VTRADE_PHONE_CONTROLS_V16__)return;
 window.__VTRADE_PHONE_CONTROLS_V16__=true;
-/* Stop the older phone interaction bridge from intercepting the native V91 buttons. */
 window.__VTRADE_PHONE_INTERACTION_V17__=true;
 const TFS=['M5','M15','H1','H4','D1'];
 const style=document.createElement('style');style.id='vtrade-phone-controls-v16-style';style.textContent=`
