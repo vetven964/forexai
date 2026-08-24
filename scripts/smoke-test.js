@@ -15,15 +15,12 @@ const required=[
   'premium-dashboard-live.html','terminal-live-phone.html','vtrade-responsive.css','vtrade-responsive.js',
   'vtrade-phone-controls-v1.js','vtrade-phone-i18n.js','vtrade-phone-i18n-v2.js'
 ];
-
 let failed=false;
 for(const file of required){const ok=fs.existsSync(path.join(root,file));console.log(`[SMOKE] ${ok?'PASS':'FAIL'} required: ${file}`);if(!ok)failed=true;}
 const syntaxFiles=[...required.filter(f=>f.endsWith('.js')),'scripts/smoke-test.js'];
 for(const file of syntaxFiles){const r=cp.spawnSync(process.execPath,['--check',path.join(root,file)],{encoding:'utf8'});const ok=r.status===0;console.log(`[SMOKE] ${ok?'PASS':'FAIL'} syntax: ${file}`);if(!ok){console.error(r.stderr||r.stdout);failed=true;}}
-
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
-const start=String(pkg.scripts?.start||'');
-const telegramScript=String(pkg.scripts?.['telegram:ai']||'');
+const start=String(pkg.scripts?.start||''),telegramScript=String(pkg.scripts?.['telegram:ai']||'');
 const render=fs.readFileSync(path.join(root,'render.yaml'),'utf8');
 const lock=fs.readFileSync(path.join(root,'vtrade-runtime-env-lock.js'),'utf8');
 const enhanced=fs.readFileSync(path.join(root,'vtrade-enhanced-launcher.js'),'utf8');
@@ -38,7 +35,6 @@ const preMarket=fs.readFileSync(path.join(root,'terminal-pre-market.js'),'utf8')
 const weeklyPreopen=fs.readFileSync(path.join(root,'sunday-weekly-preopen.js'),'utf8');
 const mondayCandle=fs.readFileSync(path.join(root,'monday-fresh-candle-contract.js'),'utf8');
 const responsive=fs.readFileSync(path.join(root,'vtrade-responsive.js'),'utf8');
-
 const checks=[
  ['package start uses final launcher',start==='node vtrade-final-launcher.js'],
  ['package Telegram script uses canonical V4',telegramScript==='node telegram-bot-ai-service-v4.js'],
@@ -56,9 +52,10 @@ const checks=[
  ['Telegram ownership hotfix never restores credentials',telegramLogHotfix.includes('never restores credentials')],
  ['Pages index exists and links to login',index.includes('login.html')],
  ['Phone wrapper embeds full Premium Terminal',phoneShell.includes('premium-dashboard-live.html?phone=1')&&phoneShell.includes('phone-pre-market=all')&&phoneShell.includes('phone-telegram=all')],
- ['Phone wrapper injects phone controls',phoneShell.includes('vtrade-phone-controls-v1.js?v=20260824-v13')],
- ['Phone controls provide M5/M15/H1/H4/D1 + Analyze AI',phoneControls.includes("['M5','M15','H1','H4','D1']")&&phoneControls.includes('Analyze AI')],
- ['Phone controls load canonical bilingual V2',phoneControls.includes('vtrade-phone-i18n-v2.js?v=20260824-v3')],
+ ['Phone wrapper injects V14 reliable controls',phoneShell.includes('vtrade-phone-controls-v1.js?v=20260824-v14')],
+ ['Phone controls provide M5/M15/H1/H4/D1 + Analyze AI',phoneControls.includes("const TFS=['M5','M15','H1','H4','D1']")&&phoneControls.includes('Analyze AI')],
+ ['Phone controls use touch/click bridge',phoneControls.includes('touchend')&&phoneControls.includes('nativeClick')],
+ ['Phone controls load canonical bilingual V2',phoneControls.includes('vtrade-phone-i18n-v2.js?v=20260824-v4')],
  ['Phone bilingual V2 provides English and Khmer',phoneI18nV2.includes('data-lang="en"')&&phoneI18nV2.includes('data-lang="km"')&&phoneI18nV2.includes('ផ្ទាំងគ្រប់គ្រង')],
  ['Phone bilingual V2 is phone-only',phoneI18nV2.includes('max-width:900px')&&phoneI18nV2.includes('const phone=()=>')],
  ['Pre-Market supports all M5/M15/H1/H4/D1 candle analysis',preMarket.includes("const TFS=['M5','M15','H1','H4','D1']")&&preMarket.includes('CANDLE-OPEN MTF PROCESSING')&&preMarket.includes('Analyze AI')],
