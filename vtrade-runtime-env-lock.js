@@ -37,6 +37,14 @@ try { require('./vtrade-canonical-data-contract.js'); } catch (e) {
   console.error('[V-TRADE DATA CONTRACT] preload failed:', e.stack || e.message);
   process.exitCode = 1;
 }
+
+// Canonical signal authority MUST load before the launcher installs its JS loader.
+// It binds Pre-Market direction and Telegram market readiness to one contract.
+try { require('./vtrade-canonical-signal-authority-v1.js'); } catch (e) {
+  console.error('[V-TRADE AUTHORITY] canonical signal authority preload failed:', e.stack || e.message);
+  process.exitCode = 1;
+}
+
 try { require('./telegram-single-renderer-guard.js'); } catch (e) {
   console.error('[V-TRADE TELEGRAM] single renderer preload failed:', e.stack || e.message);
   process.exitCode = 1;
