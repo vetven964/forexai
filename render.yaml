@@ -34,7 +34,7 @@ services:
       - key: MT5_MAX_AGE_MS
         value: "15000"
       - key: VTRADE_TELEGRAM_SEPARATE
-        value: "false"
+        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_SSL
