@@ -8,7 +8,6 @@
     'Dashboard':'ផ្ទាំងគ្រប់គ្រង','Terminal':'ស្ថានីយ','Signals':'សញ្ញា','AI Intelligence':'បញ្ញា AI','News Intelligence':'ព័ត៌មានឆ្លាតវៃ','Telegram':'Telegram','Risk Calculator':'គណនាហានិភ័យ','Trade History':'ប្រវត្តិជួញដូរ','Settings':'ការកំណត់',
     'Home':'ទំព័រដើម','Analyzer':'វិភាគ','Chart':'ក្រាប','News':'ព័ត៌មាន','Pre-Market Zone Analysis':'ការវិភាគតំបន់មុនទីផ្សារ','Analyze AI':'វិភាគដោយ AI','PRE-MARKET MTF DIRECTION STRENGTH':'កម្លាំងទិសដៅ MTF មុនទីផ្សារ','BUY Strength':'កម្លាំង BUY','SELL Strength':'កម្លាំង SELL','MTF Bias':'ទិសដៅ MTF','MT5 LIVE DATA CONNECTED':'ទិន្នន័យ MT5 ផ្ទាល់បានភ្ជាប់','AI WAIT — BUY RETEST INTO ZONE':'AI រង់ចាំ — BUY ត្រឡប់មកតំបន់','VALID EXECUTION ZONE':'តំបន់ចូលដែលមានសុពលភាព','BUY ZONE':'តំបន់ BUY','SELL ZONE':'តំបន់ SELL','Current Price':'តម្លៃបច្ចុប្បន្ន','Entry area':'តំបន់ចូល','Execution':'ការប្រតិបត្តិ','WAIT':'រង់ចាំ','Waiting for liquidity sweep':'កំពុងរង់ចាំ Liquidity Sweep','BACKEND LIVE':'Backend ដំណើរការ','MT5 LIVE':'MT5 ផ្ទាល់','BULLISH':'ទិសដៅឡើង','BEARISH':'ទិសដៅចុះ','M15':'M15','M5':'M5','H1':'H1','H4':'H4','D1':'D1'
   };
-  const reverse = Object.fromEntries(Object.entries(MAP).map(([en, km]) => [km, en]));
   let lang = localStorage.getItem(KEY) || 'en';
   let frameDoc = null;
   const original = new WeakMap();
@@ -28,17 +27,14 @@
     if (!frameDoc) return;
     frameDoc.documentElement.lang = lang === 'km' ? 'km' : 'en';
     for (const node of textNodes(frameDoc)) {
-      const raw = node.nodeValue;
-      const key = raw.trim();
-      if (!original.has(node)) original.set(node, raw);
-      const source = original.get(node).trim();
+      if (!original.has(node)) original.set(node, node.nodeValue);
+      const originalText = original.get(node);
+      const source = originalText.trim();
       if (!source) continue;
-      let next = source;
-      if (lang === 'km' && MAP[source]) next = MAP[source];
-      if (lang === 'en' && reverse[source]) next = reverse[source];
-      if (next !== source) {
-        const lead = original.get(node).match(/^\s*/)?.[0] || '';
-        const tail = original.get(node).match(/\s*$/)?.[0] || '';
+      const next = lang === 'km' ? (MAP[source] || source) : source;
+      if (node.nodeValue.trim() !== next) {
+        const lead = originalText.match(/^\s*/)?.[0] || '';
+        const tail = originalText.match(/\s*$/)?.[0] || '';
         node.nodeValue = lead + next + tail;
       }
     }
