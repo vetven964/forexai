@@ -65,4 +65,6 @@ try{require('./ai-confirmation-runtime-v2.js');console.log('[V-TRADE START] AI C
 require('./pre-market-structure-hook.js');
 require('./predeploy-consistency-hotfix.js');
 require('./vtrade-start.js');
+// Normalize the legacy CORE Telegram startup message after V4 receives its private credentials.
+try{require('./telegram-core-log-ownership-hotfix.js');}catch(e){console.error('[V-TRADE TELEGRAM] log ownership hotfix failed:',e.message);throw e;}
 require('./server-launcher.js');
