@@ -9,5 +9,5 @@
 
 process.env.VTRADE_TELEGRAM_CHILD='1';
 console.log('[V-TRADE TELEGRAM AI] V4.1 ENTRY | Telegram=ONLY | FridayMonday=READ_ONLY | PreMarket=NOT_LOADED');
-require('./telegram-format-hotfix-v5.js');
+require('./telegram-format-hotfix-v6.js');
 require('./telegram-bot-ai-service.js');
