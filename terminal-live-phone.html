@@ -8,13 +8,13 @@
 <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04070d}#phoneFrame{display:block;width:100%;height:100dvh;min-height:100%;border:0;background:#04070d}</style>
 </head>
 <body>
-<iframe id="phoneFrame" src="premium-dashboard-live.html?phone=1&mobile-shell=phone-all&header-fix=20260824&phone-i18n=v7&phone-pre-market=all&phone-telegram=all&phone-interaction=v21" title="V TRADE AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
+<iframe id="phoneFrame" src="premium-dashboard-live.html?phone=1&mobile-shell=phone-all&header-fix=20260824&phone-i18n=v7&phone-pre-market=all&phone-telegram=all&phone-interaction=v21&phone-touch=v1" title="V TRADE AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
 <script>
 'use strict';
 (function(){
  const frame=document.getElementById('phoneFrame');
  const add=(doc,id,src)=>{if(!doc||!doc.head||doc.getElementById(id))return;const s=doc.createElement('script');s.id=id;s.src=src;s.async=false;doc.head.appendChild(s)};
- const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21');add(doc,'vtradeAutoTradeUIInjected','vtrade-auto-trade-ui.js?v=20260825-v1')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
+ const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21');add(doc,'vtradePhoneTouchHotfixV1Injected','vtrade-phone-touch-hotfix-v1.js?v=20260825-v1');add(doc,'vtradeAutoTradeUIInjected','vtrade-auto-trade-ui.js?v=20260825-v1')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
  frame.addEventListener('load',inject,{passive:true});
  if(frame.contentDocument?.readyState==='complete')inject();
 })();
