@@ -1,13 +1,14 @@
-// V-TRADE AI — final Telegram formatter apply hook V7.3
+// V-TRADE AI — final Telegram formatter apply hook V7.4
 // Single final formatter entry point. Safe to load more than once.
-// Prevents server-launcher.js legacy WAIT renderer from overriding V7.2.
+// Adds closed-candle early direction watch without changing trade authorization.
 'use strict';
 
 try {
   const fs = require('fs');
   const path = require('path');
-  const marker = '[V-TRADE TELEGRAM] final formatter V7.3 active';
+  const marker = '[V-TRADE TELEGRAM] final formatter V7.4 active';
   require('./telegram-final-format-hotfix.js');
+  require('./telegram-early-watch-closed-candle-v1.js');
 
   // server-launcher.js previously patched telegramWaitText() in-memory after
   // the final formatter had already updated server.js on disk. That caused the
@@ -24,7 +25,7 @@ try {
     }
   }
 
-  console.log(marker + ' | canonical ICT gate state | Khmer + English | fail-closed');
+  console.log(marker + ' | canonical ICT gate state | early direction watch | CLOSED CANDLES ONLY | Khmer + English | fail-closed');
 } catch (e) {
   console.warn('[V-TRADE TELEGRAM] final formatter apply skipped safely:', e && e.message ? e.message : e);
 }
