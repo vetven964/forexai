@@ -60,6 +60,27 @@ function resolveTransition(data,timeframes){
   catch(e){console.warn('[V-TRADE TELEGRAM BRIDGE] shared transition resolver failed:',e.message);}
   return fallbackTransition(latestCandleTime(timeframes));
 }
+function canonicalAuthority(data){
+  if(isObj(data?.authority))return data.authority;
+  if(isObj(data?.signalAuthority))return data.signalAuthority;
+  if(isObj(data?.canonicalAuthority))return data.canonicalAuthority;
+  const confirmations=isObj(data?.confirmations)?data.confirmations:(isObj(data?.gates)?data.gates:{});
+  return {
+    ...data,
+    signal:data?.signal??data?.canonical?.signal??'WAIT',
+    bias:data?.bias??data?.canonical?.bias??'NEUTRAL',
+    setupScore:data?.setupScore??data?.score??data?.directionScore??data?.canonical?.directionScore??0,
+    confidence:data?.confidence??data?.canonical?.confidence??0,
+    confirmations,
+    decision:data?.decision??{},
+    execution:data?.execution??data?.workflow??{status:'WAIT'},
+    news:data?.news??{},
+    entry:data?.entry??null,
+    stopLoss:data?.stopLoss??data?.sl??null,
+    takeProfit:Array.isArray(data?.takeProfit)?data.takeProfit:(Array.isArray(data?.tp)?data.tp:[]),
+    source:data?.canonical?.source||'canonical-pre-market'
+  };
+}
 async function fetchCanonical(port,pathname,headers){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
   try{
@@ -86,12 +107,12 @@ function install(app){
       if(!chosen)return res.status(503).json({success:false,error:'Canonical Pre-Market unavailable',source:'BROKER_NATIVE_MT5',state:'WAIT'});
       const data=chosen.d,timeframes=chosen.timeframes,n=v=>Number.isFinite(Number(v))?Number(v):null;
       const rawPrice=n(data?.livePrice??data?.price??data?.quote?.price),price=rawPrice!=null&&rawPrice>0?rawPrice:null;
-      const allReady=['M5','M15','H1','H4'].every(tf=>timeframes[tf].ready),age=n(data?.quoteAgeSec??data?.ageSec),quoteConnected=price!=null&&allReady,quoteFresh=age==null?quoteConnected:(age>=0&&age<=60&&quoteConnected),marketTransition=resolveTransition(data,timeframes),mondayFreshM5=marketTransition?.mondayFreshM5===true,mondayOpenWait=marketTransition?.phase==='MONDAY_OPEN_WAIT',mondayLiveRevalidation=marketTransition?.phase==='MONDAY_LIVE_REVALIDATION',executionFresh=marketTransition?.phase==='LIVE_MARKET'||(mondayLiveRevalidation&&mondayFreshM5),executionLoaded=quoteFresh&&executionFresh;
+      const allReady=['M5','M15','H1','H4'].every(tf=>timeframes[tf].ready),age=n(data?.quoteAgeSec??data?.ageSec),quoteConnected=price!=null&&allReady,quoteFresh=age==null?quoteConnected:(age>=0&&age<=60&&quoteConnected),marketTransition=resolveTransition(data,timeframes),mondayFreshM5=marketTransition?.mondayFreshM5===true,mondayOpenWait=marketTransition?.phase==='MONDAY_OPEN_WAIT',mondayLiveRevalidation=marketTransition?.phase==='MONDAY_LIVE_REVALIDATION',executionFresh=marketTransition?.phase==='LIVE_MARKET'||(mondayLiveRevalidation&&mondayFreshM5),executionLoaded=quoteFresh&&executionFresh,authority=canonicalAuthority(data);
       const mtfCounts=Object.fromEntries(Object.entries(timeframes).map(([tf,x])=>[tf,x.count]));
-      console.log(`[V-TRADE TELEGRAM BRIDGE] SNAPSHOT | route=${chosen.pathname} | MTF=${Object.entries(mtfCounts).map(([tf,c])=>tf+':'+c).join(',')} | transition=${marketTransition?.phase||'UNKNOWN'} | freshMondayM5=${mondayFreshM5}`);
-      return res.json({success:true,source:'BROKER_NATIVE_MT5',contract:MARKER,symbol:'XAUUSD',price,bid:n(data?.bid),ask:n(data?.ask),spread:n(data?.spread),connected:executionLoaded,quoteConnected,quoteFresh,quoteAgeSec:age,state:executionLoaded?'READY':'WAIT',timeframes,frames:timeframes,mtfCounts,generatedAt:new Date().toISOString(),telegramRole:'INDEPENDENT_AI_SCAN',preMarketLoaded:true,preMarketAuthority:true,executionLoaded,executionContext:executionLoaded?'LIVE':'PRE_OPEN_WAIT',marketTransition,fridayCandleRole:marketTransition?.fridayContext?'HISTORICAL_REFERENCE':'LIVE_EXECUTION_CONTEXT',freshMondayM5:mondayFreshM5,mondayOpenWait,mondayLiveRevalidation,canonicalRoute:chosen.pathname});
+      console.log(`[V-TRADE TELEGRAM BRIDGE] SNAPSHOT | route=${chosen.pathname} | MTF=${Object.entries(mtfCounts).map(([tf,c])=>tf+':'+c).join(',')} | transition=${marketTransition?.phase||'UNKNOWN'} | freshMondayM5=${mondayFreshM5} | authority=${authority?.signal||'WAIT'}`);
+      return res.json({success:true,source:'BROKER_NATIVE_MT5',contract:MARKER,symbol:'XAUUSD',price,bid:n(data?.bid),ask:n(data?.ask),spread:n(data?.spread),connected:executionLoaded,quoteConnected,quoteFresh,quoteAgeSec:age,state:executionLoaded?'READY':'WAIT',timeframes,frames:timeframes,mtfCounts,authority,generatedAt:new Date().toISOString(),telegramRole:'CANONICAL_PREMARKET_CONSUMER',preMarketLoaded:true,preMarketAuthority:true,executionLoaded,executionContext:executionLoaded?'LIVE':'PRE_OPEN_WAIT',marketTransition,fridayCandleRole:marketTransition?.fridayContext?'HISTORICAL_REFERENCE':'LIVE_EXECUTION_CONTEXT',freshMondayM5:mondayFreshM5,mondayOpenWait,mondayLiveRevalidation,canonicalRoute:chosen.pathname});
     }catch(e){const message=String(e?.name==='AbortError'?'Canonical Pre-Market timeout':e?.message||e);console.error('[V-TRADE TELEGRAM BRIDGE] snapshot failed:',message);return res.status(503).json({success:false,error:message,source:'BROKER_NATIVE_MT5',state:'WAIT'});}
   });
   console.log('[V-TRADE TELEGRAM BRIDGE] V6.3 ACTIVE | canonical route fallback + MTF normalization | Friday historical -> Sunday pre-open -> Monday fresh M5 gate | fail-closed');
 }
-module.exports={MARKER,install,resolveTransition};
+module.exports={MARKER,install,resolveTransition,canonicalAuthority};
