@@ -25,9 +25,6 @@ if(proto&&!proto.__VTRADE_POLLING_NETWORK_HOTFIX_V5__){
   };
   Object.defineProperty(proto,'__VTRADE_POLLING_NETWORK_HOTFIX_V5__',{value:true,enumerable:false});
 }
-/* Some node-telegram-bot-api versions attach their default stderr logger before
- * application listeners. Filter only the exact AggregateError polling record;
- * all other Telegram errors remain visible. */
 const originalConsoleError=console.error.bind(console);
 console.error=(...args)=>{
   const line=args.map(x=>String(x)).join(' ');
@@ -54,3 +51,4 @@ process.on('unhandledRejection',(reason)=>{
   console.warn('[V-TRADE TELEGRAM] unhandled rejection:',reason);
 });
 console.log('[V-TRADE TELEGRAM] polling/network hotfix V5 active | AggregateError recovery + stderr filter');
+try{require('./telegram-wait-delivery-hotfix-v1.js');}catch(e){console.error('[V-TRADE TELEGRAM WAIT] hotfix load failed:',e.message);}
