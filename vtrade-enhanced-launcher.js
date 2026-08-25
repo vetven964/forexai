@@ -81,9 +81,10 @@ function startIndependentTelegram(){
   setTimeout(launch,8000);
   console.log('[V-TRADE PROCESS SEPARATION] CORE=PRE-MARKET/AI | TELEGRAM=BOT-V6 CHILD | canonical authority consumer | delayed=8000ms');
 }
-// Patch the bridge contract before the CORE loads it so Telegram receives the full
-// server-authoritative analysis object instead of rebuilding ICT locally.
+// Patch authority contracts before CORE starts. Telegram consumes the CORE result;
+// it never rebuilds candles or makes a second independent execution decision.
 try{require('./telegram-authority-contract-v2.js');}catch(e){console.error('[V-TRADE TELEGRAM AUTHORITY] contract patch failed:',e.stack||e.message);throw e;}
+try{require('./vtrade-crt-authority-v1.js');}catch(e){console.error('[V-TRADE CRT] authority patch failed:',e.stack||e.message);throw e;}
 installDashboardUI();
 installTelegramBridge();
 installNewsCalendarGate();
