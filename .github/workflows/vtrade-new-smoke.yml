@@ -6,6 +6,8 @@ on:
     paths:
       - 'vtrade-new/**'
       - 'scripts/vtrade-new-smoke.mjs'
+      - 'tests/logic-v4-sr-liquidity.test.js'
+      - 'logic-v4-execution.js'
       - '.github/workflows/vtrade-new-smoke.yml'
   workflow_dispatch:
 
@@ -22,5 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: S/R + Liquidity execution guard tests
+        run: node tests/logic-v4-sr-liquidity.test.js
       - name: Standalone new website smoke test
         run: node scripts/vtrade-new-smoke.mjs
