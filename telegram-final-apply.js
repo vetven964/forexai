@@ -1,4 +1,4 @@
-// V-TRADE AI — final Telegram formatter apply hook V7.4
+// V-TRADE AI — final Telegram formatter apply hook V7.5
 // Single final formatter entry point. Safe to load more than once.
 // Adds closed-candle early direction watch without changing trade authorization.
 'use strict';
@@ -6,13 +6,11 @@
 try {
   const fs = require('fs');
   const path = require('path');
-  const marker = '[V-TRADE TELEGRAM] final formatter V7.4 active';
+  const marker = '[V-TRADE TELEGRAM] final formatter V7.5 active';
   require('./telegram-final-format-hotfix.js');
   require('./telegram-early-watch-closed-candle-v1.js');
+  require('./telegram-early-watch-format-v1.js');
 
-  // server-launcher.js previously patched telegramWaitText() in-memory after
-  // the final formatter had already updated server.js on disk. That caused the
-  // old WAIT card to win at runtime. Make the launcher defer to V7.2/V7.3.
   const launcherFile = path.resolve(__dirname, 'server-launcher.js');
   if (fs.existsSync(launcherFile)) {
     let launcher = fs.readFileSync(launcherFile, 'utf8');
