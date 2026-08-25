@@ -1,11 +1,13 @@
-// V-TRADE AI — Telegram compact signal formatter V7.2
+// V-TRADE AI — Telegram compact signal formatter V7.3
 // Presentation + delivery wiring hotfix. ICT authorization remains unchanged.
+// WAIT delivery: one automatic Telegram update per polling minute.
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const TARGET=path.resolve(__dirname,'telegram-bot-ai-service.js');
 const FORMAT_MARKER='VTRADE_TELEGRAM_COMPACT_FORMAT_V7_1';
 const DELIVERY_MARKER='VTRADE_TELEGRAM_CANONICAL_WAIT_DELIVERY_V2';
+const WAIT_MINUTE_MARKER='VTRADE_TELEGRAM_WAIT_MINUTE_DELIVERY_V3';
 function patch(){
   if(!fs.existsSync(TARGET))throw new Error('telegram-bot-ai-service.js not found');
   let source=fs.readFileSync(TARGET,'utf8');
@@ -57,5 +59,21 @@ function patch(){
       throw new Error('scan delivery anchor not found');
     }
   }
+  source=fs.readFileSync(TARGET,'utf8');
+  if(!source.includes(WAIT_MINUTE_MARKER)){
+    const oldKey="function signalKey(a){return[a.signal,a.timeframe,a.entry,a.stopLoss,(a.takeProfit||[]).join(','),a.transition?.phase,a.transition?.candleTime].join('|');}";
+    const newKey=[
+      'function signalKey(a){',
+      '  // '+WAIT_MINUTE_MARKER,
+      "  const base=[a.signal,a.timeframe,a.entry,a.stopLoss,(a.takeProfit||[]).join(','),a.transition?.phase,a.transition?.candleTime].join('|');",
+      "  // WAIT is a live status update: emit at most once per polling minute, while AUTHORIZED signals remain deduplicated by setup key.",
+      "  return a.tradeAuthorized===true?base:base+'|WAIT_MINUTE:'+Math.floor(Date.now()/60000);",
+      '}'
+    ].join('\n');
+    if(!source.includes(oldKey))throw new Error('signalKey anchor not found');
+    source=source.replace(oldKey,newKey);
+    fs.writeFileSync(TARGET,source,'utf8');
+    console.log('[V-TRADE TELEGRAM] WAIT minute delivery V3 active | one WAIT update per polling minute');
+  }
 }
-try{patch();}catch(e){console.error('[V-TRADE TELEGRAM] V7.2 hotfix failed:',e.stack||e.message);throw e;}
+try{patch();}catch(e){console.error('[V-TRADE TELEGRAM] V7.3 hotfix failed:',e.stack||e.message);throw e;}
