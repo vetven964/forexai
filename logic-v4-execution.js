@@ -14,6 +14,18 @@ function zoneLevels(a, side){
     : [n(z.resistance),n(z.supply),n(r.resistance),n(r.supply),n(a.resistance),n(a.supply)];
   return [...levels,...direct.filter(Number.isFinite)];
 }
+function strongZoneNear(a,side,price,buffer){
+  const z=a.supportResistance||a.srZones||a.keyLevels||{};
+  const raw=side==='BUY'
+    ? [...arr(z.support),...arr(z.demands),...arr(z.demandZones)]
+    : [...arr(z.resistance),...arr(z.supplies),...arr(z.supplyZones)];
+  return raw.some(x=>{
+    if(!x||typeof x!=='object') return false;
+    const level=n(x.level??x.price??x.mid??x.low??x.high);
+    const strength=String(x.strength??x.strengthLabel??x.quality??'').toLowerCase();
+    return Number.isFinite(level)&&['strong','major','high'].includes(strength)&&Math.abs(price-level)<=buffer;
+  });
+}
 function nearest(levels,price){
   if(!levels.length)return null;
   return levels.reduce((best,x)=>best===null||Math.abs(x-price)<Math.abs(best-price)?x:best,null);
@@ -48,56 +60,35 @@ function applyExecution(a){
   const sr=zoneLevels(a,side);
   const liq=liquidityLevels(a,side);
   const zoneBuffer=Math.max(atr*.20,width*.03);
+  const strongZoneBuffer=Math.max(atr*.75,width*.05);
   const nearestSR=nearest(sr,price);
   const nearestLiq=nearest(liq,price);
-  const nearOpposingZone=Number.isFinite(nearestSR) && Math.abs(price-nearestSR)<=zoneBuffer;
+  const nearZone=Number.isFinite(nearestSR) && Math.abs(price-nearestSR)<=zoneBuffer;
+  const strongZone=strongZoneNear(a,side,price,strongZoneBuffer);
   const confirmations=a.confirmations||{};
-  const hasSweep=Boolean(
-    confirmations.liquiditySweep ||
-    a.liquiditySweep?.confirmed || a.liquiditySweepConfirmed ||
-    a.ict?.liquiditySweep==='Swept' || a.ictStructure?.liquiditySweep==='Swept'
-  );
-  const hasMSS=Boolean(
-    confirmations.mss ||
-    a.mssConfirmed || a.marketStructureShift?.confirmed ||
-    a.ict?.mss==='Confirmed' || a.ictStructure?.mss==='Confirmed'
-  );
+  const hasSweep=Boolean(confirmations.liquiditySweep||a.liquiditySweep?.confirmed||a.liquiditySweepConfirmed||a.ict?.liquiditySweep==='Swept'||a.ictStructure?.liquiditySweep==='Swept');
+  const hasMSS=Boolean(confirmations.mss||a.mssConfirmed||a.marketStructureShift?.confirmed||a.ict?.mss==='Confirmed'||a.ictStructure?.mss==='Confirmed');
 
-  // S/R is an execution gate, not a display-only label. A trade touching a
-  // strong/nearby zone requires the ICT sequence: liquidity sweep + MSS.
-  if(nearOpposingZone && !(hasSweep&&hasMSS)){
+  // Strong/near S/R is an execution gate, not a display-only label.
+  if((nearZone||strongZone) && !(hasSweep&&hasMSS)){
     a.tradeAuthorized=false;
     a.confirmations={...confirmations,allGatesPassed:false};
     a.status='WAIT — S/R ZONE REQUIRES SWEEP + MSS';
-    a.executionGuard={valid:false,reason:'SR_ZONE_NO_CONFIRMATION',nearestSR:Number(nearestSR.toFixed(2)),zoneBuffer:Number(zoneBuffer.toFixed(2)),liquiditySweep:hasSweep,mss:hasMSS};
+    a.executionGuard={valid:false,reason:'SR_ZONE_NO_CONFIRMATION',nearestSR:Number.isFinite(nearestSR)?Number(nearestSR.toFixed(2)):null,zoneBuffer:Number(zoneBuffer.toFixed(2)),strongZone,liquiditySweep:hasSweep,mss:hasMSS};
     return a;
   }
 
-  // A liquidity pool close to the entry is protected by moving SL beyond it.
   if(Number.isFinite(nearestLiq)){
     if(side==='BUY' && nearestLiq<entry && nearestLiq>=sl) sl=nearestLiq-buffer;
     if(side==='SELL' && nearestLiq>entry && nearestLiq<=sl) sl=nearestLiq+buffer;
   }
 
-  const risk=Math.abs(entry-sl);
-  const reward=Math.abs(tp1-entry);
-  const rr=risk>0?reward/risk:0;
-  const minTp1=side==='BUY'?entry+risk:entry-risk;
-  const minTp2=side==='BUY'?entry+risk*1.5:entry-risk*1.5;
-  const minTp3=side==='BUY'?entry+risk*2:entry-risk*2;
-  const ordered=side==='BUY'
-    ? sl<entry && entry<tp1 && tp1<tp2 && tp2<tp3
-    : sl>entry && entry>tp1 && tp1>tp2 && tp2>tp3;
-  const targetSpacing=side==='BUY'
-    ? tp1>=minTp1 && tp2>=minTp2 && tp3>=minTp3
-    : tp1<=minTp1 && tp2<=minTp2 && tp3<=minTp3;
-
+  const risk=Math.abs(entry-sl),reward=Math.abs(tp1-entry),rr=risk>0?reward/risk:0;
+  const minTp1=side==='BUY'?entry+risk:entry-risk,minTp2=side==='BUY'?entry+risk*1.5:entry-risk*1.5,minTp3=side==='BUY'?entry+risk*2:entry-risk*2;
+  const ordered=side==='BUY'?sl<entry&&entry<tp1&&tp1<tp2&&tp2<tp3:sl>entry&&entry>tp1&&tp1>tp2&&tp2>tp3;
+  const targetSpacing=side==='BUY'?tp1>=minTp1&&tp2>=minTp2&&tp3>=minTp3:tp1<=minTp1&&tp2<=minTp2&&tp3<=minTp3;
   if(!Number.isFinite(rr)||rr<1.3||!ordered||!targetSpacing){
-    a.tradeAuthorized=false;
-    a.confirmations={...confirmations,allGatesPassed:false};
-    a.status='WAIT — INVALID TARGET GEOMETRY / R:R';
-    a.executionGuard={valid:false,reason:'TARGET_SPACING_OR_RR',risk:Number(risk.toFixed(2)),rr:Number(rr.toFixed(2))};
-    return a;
+    a.tradeAuthorized=false;a.confirmations={...confirmations,allGatesPassed:false};a.status='WAIT — INVALID TARGET GEOMETRY / R:R';a.executionGuard={valid:false,reason:'TARGET_SPACING_OR_RR',risk:Number(risk.toFixed(2)),rr:Number(rr.toFixed(2))};return a;
   }
   return {...a,entry:Number(entry.toFixed(2)),stopLoss:Number(sl.toFixed(2)),takeProfit:[Number(tp1.toFixed(2)),Number(tp2.toFixed(2)),Number(tp3.toFixed(2))],riskReward:Number(rr.toFixed(2)),bestOpportunity:{...(a.bestOpportunity||{}),riskReward:Number(rr.toFixed(2)),entry:Number(entry.toFixed(2)),stopLoss:Number(sl.toFixed(2)),takeProfit:[Number(tp1.toFixed(2)),Number(tp2.toFixed(2)),Number(tp3.toFixed(2))]},workflow:{...(a.workflow||{}),entryAuthorization:true,riskReward:Number(rr.toFixed(2)),targetsReady:true},executionGuard:{valid:true,risk:Number(risk.toFixed(2)),minRR:1.3,minTargetR:[1,1.5,2],srGate:true,liquidityGate:true}};
 }
