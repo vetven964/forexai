@@ -15,7 +15,8 @@
 (function(){
  const frame=document.getElementById('phoneFrame');
  const add=(doc,id,src)=>{if(!doc||!doc.head||doc.getElementById(id))return;const s=doc.createElement('script');s.id=id;s.src=src;s.async=false;doc.head.appendChild(s)};
- const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21');add(doc,'vtradePhoneTouchHotfixV1Injected','vtrade-phone-touch-hotfix-v1.js?v=20260825-v1');add(doc,'vtradePhoneDrawerForceV2Injected','vtrade-phone-drawer-force-v2.js?v=20260825-v2');add(doc,'vtradeAutoTradeUIInjected','vtrade-auto-trade-ui.js?v=20260825-v1')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
+ const addCss=(doc,id,href)=>{if(!doc||!doc.head||doc.getElementById(id))return;const l=doc.createElement('link');l.id=id;l.rel='stylesheet';l.href=href;doc.head.appendChild(l)};
+ const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;addCss(doc,'vtradePhoneLayoutV1Injected','vtrade-phone-layout-v1.css?v=20260824-v1');add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21');add(doc,'vtradePhoneTouchHotfixV1Injected','vtrade-phone-touch-hotfix-v1.js?v=20260825-v1');add(doc,'vtradePhoneDrawerForceV2Injected','vtrade-phone-drawer-force-v2.js?v=20260825-v2');add(doc,'vtradeAutoTradeUIInjected','vtrade-auto-trade-ui.js?v=20260825-v1')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
  frame.addEventListener('load',inject,{passive:true});
  if(frame.contentDocument?.readyState==='complete')inject();
 })();
