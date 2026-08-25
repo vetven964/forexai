@@ -21,7 +21,7 @@ function patch(){
   }
 
   // Some older injected builds used an equivalent helper call without the exact
-  // `const raw` prefix. Patch the helper reference wherever it remains inside CRT.
+  // `const raw` prefix. Patch the helper reference wherever it remains.
   const brokenExpr="bars(root?.M5??root?.m5??root)";
   const fixedExpr="(Array.isArray(root?.M5)?root.M5:Array.isArray(root?.m5)?root.m5:Array.isArray(root)?root:Array.isArray(root?.candles)?root.candles:Array.isArray(root?.bars)?root.bars:[])";
   while(source.includes(brokenExpr)){
@@ -29,7 +29,7 @@ function patch(){
     count++;
   }
 
-  const marker="/* ${MARK} */";
+  const marker=`/* ${MARK} */`;
   const anchor='const app = express();';
   if(!source.includes(marker)){
     if(!source.includes(anchor)) throw new Error('server app marker not found');
