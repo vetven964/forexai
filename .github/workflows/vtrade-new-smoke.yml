@@ -1,0 +1,26 @@
+name: V TRADE AI New Website Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vtrade-new/**'
+      - 'scripts/vtrade-new-smoke.mjs'
+      - '.github/workflows/vtrade-new-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Standalone new website smoke test
+        run: node scripts/vtrade-new-smoke.mjs
