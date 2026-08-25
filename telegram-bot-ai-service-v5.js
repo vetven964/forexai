@@ -3,6 +3,7 @@
  * It reads broker-native MT5 snapshot data and never creates/fakes candles.
  * PRE-MARKET UI/CORE never sends Telegram messages.
  * Authorization is fail-closed: ICT + CRT + MTF + fresh data must pass.
+ * AUTO DELIVERY: confirmed BUY/SELL only. WAIT is never auto-broadcast.
  */
 'use strict';
 require('dotenv').config();
@@ -49,8 +50,15 @@ function analyze(s){
 async function snapshot(){const h={};if(BRIDGE_KEY)h['X-VTRADE-TELEGRAM-KEY']=BRIDGE_KEY;const r=await fetch(CORE_URL+'/api/telegram/market-snapshot',{headers:h,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||d.success!==true)throw new Error(d.error||`HTTP ${r.status}`);return d;}
 const F=v=>v==null?'WAIT':Number(v).toFixed(2);const G=(x,k)=>x.gates[k]?'PASS':'WAIT';
 function format(a){const side=a.signal==='BUY'?'🟢 BUY':a.signal==='SELL'?'🔴 SELL':'🟡 WAIT';return[`🤖 *V TRADE AI — XAUUSD*`,`💰 ${F(a.price)} | *${side}*`,`📈 *${a.bias}* | Score *${a.score}/100* | Conf *${a.confidence}/100*`,`🔎 ICT/CRT *${a.passed}/${a.total}*`,`💧 Sweep ${G(a,'sweep')} | MSS ${G(a,'mss')} | BOS ${G(a,'bos')}`,`⚡ Disp ${G(a,'displacement')} | FVG ${G(a,'fvg')} | OB ${G(a,'ob')}`,`🧠 CRT Exp ${G(a,'crtExpansion')} | Confirm ${G(a,'crtConfirm')}`,`📍 Mom ${G(a,'momentum')} | Spread ${G(a,'spread')}`,`🎯 Entry ${F(a.entry)} | SL ${F(a.sl)}`,`🎯 TP1 ${F(a.tp[0])} | TP2 ${F(a.tp[1])} | TP3 ${F(a.tp[2])}`,'',a.authorized?'🔐 *TRADE AUTHORIZED*':'⏳ *WAIT — NO ORDER*',`🧠 ${a.reason||'Setup incomplete'}`].join('\n');}
-async function scan(force=false){if(busy)return;busy=true;try{const a=analyze(await snapshot());lastAnalysis=a;console.log(`[V-TRADE TELEGRAM V5] Scan | ${a.signal} | ${a.bias} | score=${a.score} | conf=${a.confidence} | gates=${a.passed}/${a.total}`);const minute=Math.floor(Date.now()/60000);const key=`${a.signal}|${a.candleTime}|${minute}|${a.authorized}`;if(!force&&key===lastSentKey)return;await bot.sendMessage(CHAT_ID,format(a),{parse_mode:'Markdown'});lastSentKey=key;console.log(`[V-TRADE TELEGRAM V5] SENT | signal=${a.signal} | authorized=${a.authorized}`);}catch(e){console.warn('[V-TRADE TELEGRAM V5] delivery/analysis failed:',e.message);}finally{busy=false;}}
+async function scan(force=false,manual=false){if(busy)return;busy=true;try{const a=analyze(await snapshot());lastAnalysis=a;console.log(`[V-TRADE TELEGRAM V5] Scan | ${a.signal} | ${a.bias} | score=${a.score} | conf=${a.confidence} | gates=${a.passed}/${a.total}`);
+  // AUTOMATIC delivery is ENTRY-ONLY. WAIT stays internal and is never broadcast.
+  if(!manual&&!a.authorized){console.log('[V-TRADE TELEGRAM V5] WAIT suppressed | automatic delivery is ENTRY-ONLY');return;}
+  // Confirmed setups are deduplicated by setup/candle, never by polling minute.
+  const key=a.authorized?`${a.signal}|${a.candleTime}|${a.entry}|${a.sl}|${(a.tp||[]).join(',')}`:`MANUAL|${a.signal}|${a.candleTime}|${a.price}|${a.passed}|${a.confidence}`;
+  if(!force&&key===lastSentKey)return;
+  await bot.sendMessage(CHAT_ID,format(a),{parse_mode:'Markdown'});lastSentKey=key;console.log(`[V-TRADE TELEGRAM V5] SENT | signal=${a.signal} | authorized=${a.authorized} | manual=${manual}`);
+ }catch(e){console.warn('[V-TRADE TELEGRAM V5] delivery/analysis failed:',e.message);}finally{busy=false;}}
 bot.on('polling_error',e=>console.warn('[V-TRADE TELEGRAM V5] polling_error:',e.message));
-bot.onText(/^\/(start|signal)(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await scan(true);});
-console.log('[V-TRADE TELEGRAM V5] Telegram Bot ONLY | ICT+CRT | broker-native candles | fail-closed');
-setTimeout(()=>scan(true),5000);setInterval(()=>scan(false),POLL_MS);
+bot.onText(/^\/(start|signal)(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await scan(true,true);});
+console.log('[V-TRADE TELEGRAM V5] Telegram Bot ONLY | ICT+CRT | broker-native candles | fail-closed | WAIT auto-suppressed');
+setTimeout(()=>scan(false,false),5000);setInterval(()=>scan(false,false),POLL_MS);
