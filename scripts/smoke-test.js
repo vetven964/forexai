@@ -15,7 +15,7 @@ const checks=[
 ['enhanced launcher uses Telegram V6',enhanced.includes('telegram-bot-ai-service-v6.js')],
 ['final launcher loads enhanced launcher',final.includes("require('./vtrade-enhanced-launcher.js')")],
 ['legacy Telegram Auto Scanner stays disabled',lock.includes("TELEGRAM_AUTO_ALERT_ENABLED = 'false'")],
-['Telegram ownership remains fail-safe',/never restores[\\s\\S]*credentials/.test(tg)&&tg.includes('never creates a Telegram client in CORE')],
+['Telegram ownership remains fail-safe',tg.includes('never restores')&&tg.includes('credentials')&&tg.includes('never creates a Telegram client in CORE')],
 ['Phone shell contains pre-market + Telegram routes',phone.includes('phone-pre-market=all')&&phone.includes('phone-telegram=all')],
 ['Phone shell loads current V21 interaction + layout',phone.includes('phone-interaction=v21')&&phone.includes('vtrade-phone-interaction-v20.js?v=20260824-v21')&&phone.includes('vtrade-phone-layout-v1.css?v=20260824-v1')&&phone.includes('vtrade-phone-controls-v1.js?v=20260824-v21')],
 ['Phone controls expose M5/M15/H1/H4/D1',controls.includes("const TFS=['M5','M15','H1','H4','D1']")],
