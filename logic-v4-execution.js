@@ -45,30 +45,35 @@ function applyExecution(a){
     tp3=r.rangeLow-Math.max(atr,width*.10);
   }else return a;
 
-  // Structural protection: if S/R or liquidity data is supplied by the analyzer,
-  // it becomes an execution gate instead of a display-only annotation.
   const sr=zoneLevels(a,side);
   const liq=liquidityLevels(a,side);
   const zoneBuffer=Math.max(atr*.20,width*.03);
   const nearestSR=nearest(sr,price);
   const nearestLiq=nearest(liq,price);
   const nearOpposingZone=Number.isFinite(nearestSR) && Math.abs(price-nearestSR)<=zoneBuffer;
-  const hasSweep=Boolean(a.liquiditySweep?.confirmed||a.liquiditySweepConfirmed||a.ict?.liquiditySweep==='Swept'||a.ictStructure?.liquiditySweep==='Swept');
-  const hasMSS=Boolean(a.mssConfirmed||a.marketStructureShift?.confirmed||a.ict?.mss==='Confirmed'||a.ictStructure?.mss==='Confirmed');
+  const confirmations=a.confirmations||{};
+  const hasSweep=Boolean(
+    confirmations.liquiditySweep ||
+    a.liquiditySweep?.confirmed || a.liquiditySweepConfirmed ||
+    a.ict?.liquiditySweep==='Swept' || a.ictStructure?.liquiditySweep==='Swept'
+  );
+  const hasMSS=Boolean(
+    confirmations.mss ||
+    a.mssConfirmed || a.marketStructureShift?.confirmed ||
+    a.ict?.mss==='Confirmed' || a.ictStructure?.mss==='Confirmed'
+  );
 
-  // A trade at an opposing/uncleared level is rejected unless the analyzer
-  // explicitly confirms the sweep + MSS sequence. This prevents blind entries
-  // directly into support/resistance and obvious liquidity pools.
+  // S/R is an execution gate, not a display-only label. A trade touching a
+  // strong/nearby zone requires the ICT sequence: liquidity sweep + MSS.
   if(nearOpposingZone && !(hasSweep&&hasMSS)){
     a.tradeAuthorized=false;
-    a.confirmations={...(a.confirmations||{}),allGatesPassed:false};
+    a.confirmations={...confirmations,allGatesPassed:false};
     a.status='WAIT — S/R ZONE REQUIRES SWEEP + MSS';
-    a.executionGuard={valid:false,reason:'SR_ZONE_NO_CONFIRMATION',nearestSR:Number(nearestSR.toFixed(2)),zoneBuffer:Number(zoneBuffer.toFixed(2))};
+    a.executionGuard={valid:false,reason:'SR_ZONE_NO_CONFIRMATION',nearestSR:Number(nearestSR.toFixed(2)),zoneBuffer:Number(zoneBuffer.toFixed(2)),liquiditySweep:hasSweep,mss:hasMSS};
     return a;
   }
 
-  // If a structural liquidity level is closer than the proposed SL, move the
-  // SL beyond that level. If the resulting risk breaks RR, reject the setup.
+  // A liquidity pool close to the entry is protected by moving SL beyond it.
   if(Number.isFinite(nearestLiq)){
     if(side==='BUY' && nearestLiq<entry && nearestLiq>=sl) sl=nearestLiq-buffer;
     if(side==='SELL' && nearestLiq>entry && nearestLiq<=sl) sl=nearestLiq+buffer;
@@ -89,7 +94,7 @@ function applyExecution(a){
 
   if(!Number.isFinite(rr)||rr<1.3||!ordered||!targetSpacing){
     a.tradeAuthorized=false;
-    a.confirmations={...(a.confirmations||{}),allGatesPassed:false};
+    a.confirmations={...confirmations,allGatesPassed:false};
     a.status='WAIT — INVALID TARGET GEOMETRY / R:R';
     a.executionGuard={valid:false,reason:'TARGET_SPACING_OR_RR',risk:Number(risk.toFixed(2)),rr:Number(rr.toFixed(2))};
     return a;
