@@ -14,7 +14,7 @@
 (function(){
  const frame=document.getElementById('phoneFrame');
  const add=(doc,id,src)=>{if(!doc||!doc.head||doc.getElementById(id))return;const s=doc.createElement('script');s.id=id;s.src=src;s.async=false;doc.head.appendChild(s)};
- const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
+ const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21');add(doc,'vtradeAutoTradeUIInjected','vtrade-auto-trade-ui-v1.js?v=20260825')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
  frame.addEventListener('load',inject,{passive:true});
  if(frame.contentDocument?.readyState==='complete')inject();
 })();
