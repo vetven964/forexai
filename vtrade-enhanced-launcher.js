@@ -10,7 +10,6 @@ const POST=path.join(ROOT,'pre-market-post-open-ai.js');
 const AUTH_UI=path.join(ROOT,'pre-market-authority-ui-hotfix.js');
 const V9=path.join(ROOT,'pre-market-v9.js');
 const TELEGRAM_SERVICE=path.join(ROOT,'telegram-bot-ai-service-v6.js');
-const TELEGRAM_POLLING_HOTFIX=path.join(ROOT,'telegram-polling-network-hotfix-v1.js');
 const UI_MARK='VTRADE_PREMARKET_INTELLIGENCE_UI_V2';
 const AUTH_UI_MARK='VTRADE_PREMARKET_AUTHORITY_UI_V1';
 const V9_MARK='VTRADE_PREMARKET_V9_UI';
@@ -81,10 +80,12 @@ function startIndependentTelegram(){
   setTimeout(launch,8000);
   console.log('[V-TRADE PROCESS SEPARATION] CORE=PRE-MARKET/AI | TELEGRAM=BOT-V6 CHILD | canonical authority consumer | delayed=8000ms');
 }
-// Patch authority contracts before CORE starts. Telegram consumes the CORE result;
-// it never rebuilds candles or makes a second independent execution decision.
+// Fix any already-injected CRT helper before the server module is loaded.
+// This must run before pre-market routes call buildXauAnalysis().
+try{require('./vtrade-crt-authority-v1.js');console.log('[V-TRADE START] CRT scope hotfix loaded before server boot');}catch(e){console.error('[V-TRADE CRT] FATAL:',e.stack||e.message);throw e;}
+// Patch the bridge contract before the CORE loads it so Telegram receives the full
+// server-authoritative analysis object instead of rebuilding ICT locally.
 try{require('./telegram-authority-contract-v2.js');}catch(e){console.error('[V-TRADE TELEGRAM AUTHORITY] contract patch failed:',e.stack||e.message);throw e;}
-try{require('./vtrade-crt-authority-v1.js');}catch(e){console.error('[V-TRADE CRT] authority patch failed:',e.stack||e.message);throw e;}
 installDashboardUI();
 installTelegramBridge();
 installNewsCalendarGate();
