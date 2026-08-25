@@ -98,5 +98,4 @@ require('./vtrade-start.js');
 try{require('./telegram-core-log-ownership-hotfix.js');}catch(e){console.error('[V-TRADE TELEGRAM] log ownership hotfix failed:',e.message);throw e;}
 require('./telegram-single-renderer-lock.js');
 require('./server-launcher.js');
-try{require('./telegram-v6-delivery-hotfix-v7.js');console.log('[V-TRADE TELEGRAM V6] ENTRY-ONLY delivery policy loaded');}catch(e){console.error('[V-TRADE TELEGRAM V6] delivery policy failed:',e.stack||e.message);throw e;}
 startIndependentTelegram();
