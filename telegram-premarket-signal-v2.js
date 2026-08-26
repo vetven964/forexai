@@ -1,9 +1,6 @@
-/* V-TRADE AI — Telegram Pre-Market Signal V2.1
- * Signal-only child. Reads closed MTF history before/at the current candle.
- * D1 -> H4 -> H1 -> M15 -> M5.
- * Balanced for signal availability: direction must have MTF support, but one
- * missing ICT confirmation must not permanently block a valid setup.
- * Dynamic TP ladder: <=20 points TP1, 20-50 TP1/TP2, >50 TP1/TP2/TP3.
+/* V-TRADE TELEGRAM PRE-MARKET SIGNAL V3
+ * Telegram is a read-only signal consumer.
+ * Server authority supplies MTF history, direction, ICT setup, Entry/SL/TP.
  */
 'use strict';
 require('dotenv').config();
@@ -15,48 +12,15 @@ const CHAT_ID=String(process.env.TELEGRAM_CHAT_ID||'').trim();
 const CORE_URL=String(process.env.VTRADE_CORE_URL||process.env.APP_BASE_URL||'http://127.0.0.1:10000').replace(/\/$/,'');
 const KEY=String(process.env.TELEGRAM_BRIDGE_API_KEY||process.env.MT5_BRIDGE_API_KEY||'').trim();
 const POLL_MS=Math.max(15000,Number(process.env.TELEGRAM_PREMARKET_POLL_MS||30000));
-const MIN_SCORE=Math.max(55,Number(process.env.TELEGRAM_PREMARKET_MIN_SCORE||58));
-const MIN_EDGE=Math.max(4,Number(process.env.TELEGRAM_PREMARKET_MIN_EDGE||6));
-const COOLDOWN_MS=Math.max(60000,Number(process.env.TELEGRAM_PREMARKET_COOLDOWN_MS||900000));
+const COOLDOWN_MS=Math.max(60000,Number(process.env.TELEGRAM_PREMARKET_COOLDOWN_MS||300000));
 const STATE=path.join(__dirname,'data','telegram-last-premarket-signal.json');
-if(!TOKEN||!CHAT_ID){console.warn('[V-TRADE PRE-MARKET TELEGRAM V2.1] disabled: missing Telegram credentials');process.exit(0);}
+if(!TOKEN||!CHAT_ID){console.warn('[V-TRADE PRE-MARKET TELEGRAM V3] disabled: missing Telegram credentials');process.exit(0)}
 const bot=new TelegramBot(TOKEN,{polling:false});
-let state={};try{state=JSON.parse(fs.readFileSync(STATE,'utf8'))||{};}catch(e){}
-let lastKey=state.key||'',lastSentAt=Number(state.sentAt||0),lastCandle=state.candleKey||'';
-const n=v=>Number.isFinite(Number(v))?Number(v):null;
-const F=v=>n(v)==null?'—':Number(v).toFixed(2);
-async function get(p){const h={'Cache-Control':'no-cache'};if(KEY)h['X-VTRADE-TELEGRAM-KEY']=KEY;const r=await fetch(CORE_URL+p,{headers:h,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||d.success===false)throw new Error(d.error||`HTTP ${r.status}`);return d;}
-function candleKey(a){const t=a?.timeframes||{};const r=t.M5||t.M15||{};return String(r.candleTime||r.timestamp||r.time||a.candleTime||a.timestamp||'');}
-function build(a){
- const t=a?.timeframes||{};const W={D1:5,H4:4,H1:3,M15:2,M5:1};let buy=0,sell=0,total=0;const rows={};
- for(const tf of Object.keys(W)){const r=t[tf];if(r?.ready){const b=n(r.buyPct)||0,s=n(r.sellPct)||0;rows[tf]={bias:String(r.bias||'NEUTRAL'),buy:b,sell:s};buy+=b*W[tf];sell+=s*W[tf];total+=100*W[tf];}}
- if(!total||n(a.price)==null)return null;
- buy=buy/total*100;sell=sell/total*100;const side=buy>=sell?'BUY':'SELL',edge=Math.abs(buy-sell),dir=side==='BUY'?'BULLISH':'BEARISH';
- const aligned=['D1','H4','H1','M15'].filter(tf=>rows[tf]?.bias===dir).length;
- const m5=t.M5||{},m15=t.M15||{},h1=t.H1||{};
- const swept=side==='BUY'?'SELL_SIDE_SWEPT':'BUY_SIDE_SWEPT';
- const liq=m5.liquidity?.side===swept||m15.liquidity?.side===swept||h1.liquidity?.side===swept;
- const struct=[m5.structure,h1.structure,m15.structure].some(s=>s&&(s.mss===dir||s.bos===dir));
- const pBuy=n(m5.pressure?.buy)||0,pSell=n(m5.pressure?.sell)||0,qBuy=n(m15.pressure?.buy)||0,qSell=n(m15.pressure?.sell)||0;
- const pressure=side==='BUY'?(pBuy+qBuy)>=100:(pSell+qSell)>=100;
- const fvg=[m5,m15,h1].flatMap(r=>Array.isArray(r.fvg)?r.fvg:[]).find(g=>!g.filled&&g.type===dir)||null;
- const confirmations=aligned+(liq?1:0)+(struct?1:0)+(pressure?1:0)+(fvg?1:0);
- const score=Math.round(Math.min(100,48+edge*.9+aligned*5+(liq?6:0)+(struct?6:0)+(pressure?4:0)+(fvg?4:0)));
- if(score<MIN_SCORE||edge<MIN_EDGE||aligned<2||confirmations<3)return {eligible:false,side,score,edge,aligned,confirmations};
- const price=n(a.price),atr=n(m5.atr)||n(m15.atr)||n(h1.atr)||10;let z1=price,z2=price;
- if(fvg&&n(fvg.low)!=null&&n(fvg.high)!=null){z1=Math.min(fvg.low,fvg.high);z2=Math.max(fvg.low,fvg.high);}else{const c=m5.candle||m15.candle;if(c&&n(c.open)!=null&&n(c.close)!=null){z1=Math.min(c.open,c.close);z2=Math.max(c.open,c.close);}}
- const zoneSize=Math.max(Math.abs(z2-z1),atr*.08,2);const risk=Math.max(atr*.35,zoneSize,3);const sl=side==='BUY'?Math.min(z1,price-risk):Math.max(z2,price+risk);const R=Math.abs(price-sl);
- const expected=Math.max(R*1.5,atr*.75);const count=expected<=20?1:expected<=50?2:3;const tp=[];for(let i=1;i<=count;i++){const mult=count===1?1.5:i===1?1.5:i===2?2.5:3.5;tp.push(side==='BUY'?price+R*mult:price-R*mult);}
- return {eligible:true,side,score,edge,aligned,confirmations,price,entryZone:[z1,z2],entry:price,sl,tp,expectedMove:expected,atr,rows,checks:{liquidity:liq,mssBos:struct,pressure,fvg:!!fvg},candleKey:candleKey(a)};
-}
-function save(s,key,now){fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify({...s,key,sentAt:now},null,2));}
-async function send(s){const icon=s.side==='BUY'?'🟢':'🔴';const lines=['🤖 *V TRADE AI — PRE-MARKET SIGNAL*','',`${icon} *${s.side} XAUUSD*`,`📚 History: *D1 → H4 → H1 → M15 → M5*`,`📈 Direction: *${s.side==='BUY'?'UPTRADE':'DOWNTRADE'}*`,`🧠 Score: *${s.score}/100* | Edge: *${F(s.edge)}*`,`🔎 Confirmations: *${s.confirmations}*`,'',`📍 Entry Zone: *${F(s.entryZone[0])} – ${F(s.entryZone[1])}*`,`🎯 Entry: *${F(s.entry)}*`,`🛑 SL: *${F(s.sl)}*`];s.tp.forEach((v,i)=>lines.push(`🎯 TP${i+1}: *${F(v)}*`));lines.push('',`📏 Expected move: *${F(s.expectedMove)} points*`,`💧 Liquidity: *${s.checks.liquidity?'PASS':'context'}*`,`🔀 MSS/BOS: *${s.checks.mssBos?'PASS':'context'}*`,`⚡ FVG: *${s.checks.fvg?'PASS':'context'}*`,`🕯 Pressure: *${s.checks.pressure?'PASS':'context'}*`,'','⚠️ *SIGNAL ONLY — AUTO ORDER OFF*']);await bot.sendMessage(CHAT_ID,lines.join('\n'),{parse_mode:'Markdown'});}
-async function scan(){try{const a=await get('/api/pre-market/intelligence');const s=build(a);if(!s?.eligible)return;const now=Date.now();const key=[s.side,s.entry,s.sl,...s.tp].map(F).join('|');const ck=s.candleKey||'';
-  if(key===lastKey)return;
-  if(now-lastSentAt<COOLDOWN_MS)return;
-  if(ck&&ck===lastCandle)return;
-  await send(s);lastKey=key;lastSentAt=now;lastCandle=ck;save(s,key,now);
-  console.log(`[V-TRADE PRE-MARKET TELEGRAM V2.1] SIGNAL SENT | ${s.side} | score=${s.score} | edge=${F(s.edge)} | aligned=${s.aligned}/4 | confirmations=${s.confirmations} | TP=${s.tp.length}`);
-}catch(e){console.warn('[V-TRADE PRE-MARKET TELEGRAM V2.1] scan failed:',e.message);}}
-console.log(`[V-TRADE PRE-MARKET TELEGRAM V2.1] ACTIVE | D1/H4/H1/M15/M5 | poll=${POLL_MS}ms | minScore=${MIN_SCORE} | minEdge=${MIN_EDGE} | cooldown=${COOLDOWN_MS}ms`);
-setInterval(scan,POLL_MS);scan();
+let state={};try{state=JSON.parse(fs.readFileSync(STATE,'utf8'))||{}}catch(_){}
+let lastKey=state.key||'',lastSentAt=Number(state.sentAt||0);
+const F=v=>Number.isFinite(Number(v))?Number(v).toFixed(2):'—';
+async function get(){const h={'Cache-Control':'no-cache'};if(KEY)h['X-VTRADE-TELEGRAM-KEY']=KEY;const r=await fetch(CORE_URL+'/api/pre-market/intelligence',{headers:h,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||d.success===false)throw new Error(d.error||`HTTP ${r.status}`);return d}
+function buildKey(a){return [a.signalSide,a.execution?.entry,a.execution?.sl,...(a.execution?.tp||[])].map(F).join('|')}
+async function send(a){const buy=a.signalSide==='BUY';const icon=buy?'🟢':'🔴';const tp=a.execution?.tp||[];const lines=['🤖 *V TRADE AI — PRE-MARKET SIGNAL*','',`${icon} *${a.signalSide||'SETUP'} XAUUSD*`,`📚 History: *D1 → H4 → H1 → M15 → M5*`,`📈 Direction: *${buy?'UPTRADE':'DOWNTRADE'}*`,`🧠 Score: *${a.score||a.directionScore||0}/100* | Confidence: *${a.confidence||0}%*`,`🔎 MTF: *${a.alignedTimeframes||0}/4* | Confirmations: *${a.confirmations||0}*`,'',`📍 Entry Zone: *${F(a.execution?.entryZone?.[0])} – ${F(a.execution?.entryZone?.[1])}*`,`🎯 Entry: *${F(a.execution?.entry)}*`,`🛑 SL: *${F(a.execution?.sl)}*`];tp.forEach((v,i)=>lines.push(`🎯 TP${i+1}: *${F(v)}*`));lines.push('',`📏 Expected Move: *${F(a.execution?.expectedMove)} points*`,`💧 Liquidity: *${a.checks?.liquiditySweep?'PASS':'context'}*`,`🔀 MSS: *${a.checks?.mss?'PASS':'context'}* | BOS: *${a.checks?.bos?'PASS':'context'}*`,`🟦 FVG: *${a.checks?.fvg?'PASS':'context'}* | OB: *${a.checks?.orderBlock?'PASS':'context'}*`,`⚡ Pressure: *${a.checks?.pressure?'PASS':'context'}*`,'','⚠️ *SIGNAL ONLY — AUTO ORDER OFF*']);await bot.sendMessage(CHAT_ID,lines.join('\n'),{parse_mode:'Markdown'})}
+async function scan(){try{const a=await get();if(!a.signalEligible||!a.signalSide||!a.execution?.entry||!a.execution?.sl)return;const now=Date.now(),key=buildKey(a);if(key===lastKey||now-lastSentAt<COOLDOWN_MS)return;await send(a);lastKey=key;lastSentAt=now;fs.mkdirSync(path.dirname(STATE),{recursive:true});fs.writeFileSync(STATE,JSON.stringify({key,sentAt:now,candleTime:a.timeframes?.M5?.candle?.candleTime||null,side:a.signalSide,score:a.score},null,2));console.log(`[V-TRADE PRE-MARKET TELEGRAM V3] SIGNAL SENT | ${a.signalSide} | score=${a.score} | aligned=${a.alignedTimeframes}/4 | confirmations=${a.confirmations} | TP=${a.execution.tp.length}`)}catch(e){console.warn('[V-TRADE PRE-MARKET TELEGRAM V3] scan failed:',e.message)}}
+console.log(`[V-TRADE PRE-MARKET TELEGRAM V3] ACTIVE | canonical server authority | poll=${POLL_MS}ms | cooldown=${COOLDOWN_MS}ms`);setInterval(scan,POLL_MS);scan();
