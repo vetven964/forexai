@@ -1,11 +1,11 @@
 {
-  "name": "v-trade-ai-advanced",
-  "version": "7.3.1",
-  "description": "V Trade AI XAUUSD MTF ICT + MT5 feed + Telegram alerts + optional local auto-trade",
+  "name": "v-zone-ai",
+  "version": "8.0.0",
+  "description": "V-Zone AI XAUUSD realtime ICT + CRT Telegram signal engine",
   "main": "server.js",
   "scripts": {
     "start": "node vtrade-final-launcher.js",
-    "telegram:ai": "node telegram-bot-ai-service-v6.js"
+    "telegram:ai": "node vzone-telegram-bot.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -13,7 +13,7 @@
     "express": "^4.22.2",
     "express-rate-limit": "^7.2.0",
     "helmet": "^8.1.0",
-    "node-cron": "^3.0.3",
+    "node-cron": "^3.0.0",
     "node-telegram-bot-api": "^0.65.1",
     "pg": "^8.16.3"
   }
