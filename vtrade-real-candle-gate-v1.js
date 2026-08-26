@@ -23,25 +23,19 @@ function normalizeRealCandle(x) {
   const l = num(x?.l ?? x?.low);
   const c = num(x?.c ?? x?.close);
   const v = num(x?.v ?? x?.volume ?? x?.tickVolume) ?? 0;
-
-  // Strict OHLC invariants. Invalid bars never enter the signal engine.
   if (![t,o,h,l,c].every(Number.isFinite)) return null;
   if (!(h >= Math.max(o,c) && l <= Math.min(o,c) && h >= l)) return null;
-
   const bodyHigh = Math.max(o,c);
   const bodyLow = Math.min(o,c);
   const upperWick = h - bodyHigh;
   const lowerWick = bodyLow - l;
   const range = h - l;
-
   return Object.freeze({
     t, o, h, l, c, v,
     upperWick: Number(upperWick.toFixed(5)),
     lowerWick: Number(lowerWick.toFixed(5)),
     range: Number(range.toFixed(5)),
-    source: 'MT5_BROKER_NATIVE',
-    synthetic: false,
-    realCandle: true
+    source: 'MT5_BROKER_NATIVE', synthetic: false, realCandle: true
   });
 }
 
@@ -55,15 +49,18 @@ function readBrokerCandles(brokerFeed, tf) {
 function validateTimeframe(brokerFeed, tf) {
   const r = readBrokerCandles(brokerFeed, tf);
   const chronological = r.candles.every((x,i,a) => i === 0 || x.t >= a[i-1].t);
+  const ready = r.validCount >= MIN_BARS && chronological;
+  const lastCandle = ready ? r.candles[r.candles.length - 1] : null;
   return {
     timeframe: tf,
     source: 'MT5_BROKER_NATIVE',
     bars: r.validCount,
     rawBars: r.rawCount,
-    ready: r.validCount >= MIN_BARS && chronological,
+    ready,
     chronological,
     syntheticBars: 0,
-    realCandle: r.validCount >= MIN_BARS && chronological
+    realCandle: ready,
+    lastCandle
   };
 }
 
@@ -84,12 +81,7 @@ function validateMT5Feed(brokerFeed) {
 
 function wickShadow(candle) {
   if (!candle?.realCandle || candle?.synthetic) return null;
-  return {
-    upper: candle.upperWick,
-    lower: candle.lowerWick,
-    range: candle.range,
-    source: 'REAL_MT5_HIGH_LOW'
-  };
+  return { upper: candle.upperWick, lower: candle.lowerWick, range: candle.range, source: 'REAL_MT5_HIGH_LOW' };
 }
 
 function install(a, brokerFeed) {
@@ -105,13 +97,18 @@ function install(a, brokerFeed) {
       workflow: { ...(a?.workflow || {}), realCandleOnly: true, syntheticCandles: false, entryAuthorization: false }
     };
   }
-
   const out = { ...a, realCandleGate: validation };
   out.workflow = { ...(out.workflow || {}), realCandleOnly: true, syntheticCandles: false, wickShadowSource: 'MT5_HIGH_LOW' };
   out.timeframes = { ...(out.timeframes || {}) };
   for (const tf of TFS) {
     const r = readBrokerCandles(feed, tf);
-    out.timeframes[tf] = { ...(out.timeframes[tf] || {}), candles: r.candles, bars: r.candles.length, source: 'MT5_BROKER_NATIVE', realCandle: true, synthetic: false };
+    out.timeframes[tf] = {
+      ...(out.timeframes[tf] || {}),
+      candles: r.candles,
+      lastCandle: r.candles.length ? r.candles[r.candles.length - 1] : null,
+      bars: r.candles.length,
+      source: 'MT5_BROKER_NATIVE', realCandle: true, synthetic: false
+    };
   }
   return out;
 }
