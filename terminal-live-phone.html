@@ -4,22 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050912">
-<title>V TRADE AI — Phone Terminal</title>
-<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04070d}#phoneFrame{display:block;width:100%;height:100dvh;min-height:100%;border:0;background:#04070d}#newSiteLink{position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:7px;padding:11px 14px;border:1px solid #6e3cff;border-radius:12px;background:#21124c;color:#fff;text-decoration:none;font:800 12px system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 28px #0008}#newSiteLink:hover{background:#2d1768}@media(max-width:600px){#newSiteLink{right:10px;bottom:10px;padding:10px 12px;font-size:11px}}</style>
+<title>V-Zone AI — Phone Terminal</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04070d}
+#phoneFrame{display:block;width:100%;height:100dvh;min-height:100%;border:0;background:#04070d}
+#newSiteLink{position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:7px;padding:11px 14px;border:1px solid #6e3cff;border-radius:12px;background:#21124c;color:#fff;text-decoration:none;font:800 12px system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 28px #0008}
+#newSiteLink:hover{background:#2d1768}
+@media(max-width:600px){#newSiteLink{right:10px;bottom:10px;padding:10px 12px;font-size:11px}}
+</style>
 </head>
 <body>
-<iframe id="phoneFrame" src="premium-dashboard-live.html?phone=1&mobile-shell=phone-all&header-fix=20260824&phone-i18n=v7&phone-pre-market=all&phone-telegram=all&phone-interaction=v21&phone-touch=v1&phone-drawer=v2" title="V TRADE AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
+<iframe id="phoneFrame" src="vtrade-new/index.html?phone=1&source=legacy-phone" title="V-Zone AI Phone Terminal" allow="clipboard-read; clipboard-write"></iframe>
 <a id="newSiteLink" href="vtrade-new/index.html" target="_blank" rel="noopener">🆕 V-Zone AI</a>
-<script>
-'use strict';
-(function(){
- const frame=document.getElementById('phoneFrame');
- const add=(doc,id,src)=>{if(!doc||!doc.head||doc.getElementById(id))return;const s=doc.createElement('script');s.id=id;s.src=src;s.async=false;doc.head.appendChild(s)};
- const addCss=(doc,id,href)=>{if(!doc||!doc.head||doc.getElementById(id))return;const l=doc.createElement('link');l.id=id;l.rel='stylesheet';l.href=href;doc.head.appendChild(l)};
- const inject=()=>{try{const doc=frame.contentDocument;if(!doc||!doc.head)return;addCss(doc,'vtradePhoneLayoutV1Injected','vtrade-phone-layout-v1.css?v=20260824-v1');add(doc,'vtradePhoneControlsInjected','vtrade-phone-controls-v1.js?v=20260824-v21');add(doc,'vtradePhoneInteractionV20Injected','vtrade-phone-interaction-v20.js?v=20260824-v21');add(doc,'vtradePhoneTouchHotfixV1Injected','vtrade-phone-touch-hotfix-v1.js?v=20260825-v1');add(doc,'vtradePhoneDrawerForceV2Injected','vtrade-phone-drawer-force-v2.js?v=20260825-v2');add(doc,'vtradeAutoTradeUIInjected','vtrade-auto-trade-ui.js?v=20260825-v1')}catch(e){console.warn('[V-TRADE PHONE SHELL] injection unavailable',e)}};
- frame.addEventListener('load',inject,{passive:true});
- if(frame.contentDocument?.readyState==='complete')inject();
-})();
-</script>
 </body>
 </html>
