@@ -1,13 +1,12 @@
-/* V-TRADE AI — Pre-Market route boot hotfix V11 */
+/* V-TRADE AI — Pre-Market route boot hotfix V12 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V11';
+const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V12';
 
 if(fs.existsSync(SERVER)){
   let source=fs.readFileSync(SERVER,'utf8');
-
   const legacy='/* VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V8 */';
   let start=source.indexOf(legacy);
   while(start>=0){
@@ -15,6 +14,23 @@ if(fs.existsSync(SERVER)){
     if(next>=0) source=source.slice(0,start)+source.slice(next);
     else break;
     start=source.indexOf(legacy);
+  }
+
+  try{
+    require('./vtrade-canonical-signal-authority-v1.js');
+    console.log('[V-TRADE AUTHORITY] Canonical Signal Authority V1 loaded');
+  }catch(e){
+    console.error('[V-TRADE AUTHORITY] canonical authority load failed:',e.stack||e.message);
+    throw e;
+  }
+
+  try{
+    const logic=require('./logic-v4-finalizer.js');
+    if(typeof logic.install==='function') logic.install();
+    console.log('[V-TRADE LOGIC] V4.2 historical + range/trend engine loaded');
+  }catch(e){
+    console.error('[V-TRADE LOGIC] V4.2 load failed:',e.stack||e.message);
+    throw e;
   }
 
   try{
@@ -44,8 +60,6 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
-  // Formatter is installed earlier in the launcher. Patch its weekend state now
-  // so Sunday is Sunday in Asia/Phnom_Penh and Monday is not misclassified as UTC Sunday.
   try{
     const tgState=require('./sunday-monday-telegram-state-hotfix.js');
     source=tgState.patch(source);
@@ -58,9 +72,8 @@ if(fs.existsSync(SERVER)){
   if(!source.includes(MARKER)){
     const anchor='const app = express();';
     if(!source.includes(anchor))throw new Error('server app marker not found');
-    const patch=`\n/* ${MARKER} */\n// Canonical authority + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V11: Sunday/Monday transition canonical');\n`;
+    const patch=`\n/* ${MARKER} */\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V12: canonical execution pipeline active');\n`;
     source=source.replace(anchor,anchor+patch);
   }
-
   fs.writeFileSync(SERVER,source,'utf8');
 }
