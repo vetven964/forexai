@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {validateCandle,filterValidBars}=require('../vzone-candle-integrity');
+const good={o:100,h:105,l:99,c:104,t:Date.now()};
+assert.equal(validateCandle(good).valid,true);
+assert.equal(validateCandle({o:100,h:99,l:98,c:98}).valid,false,'high below open must be rejected');
+assert.equal(validateCandle({o:100,h:105,l:106,c:104}).valid,false,'low above high must be rejected');
+assert.equal(validateCandle({o:100,h:105,l:99,c:104,t:Date.now()+3600000}).valid,false,'future candle must be rejected');
+assert.equal(validateCandle({o:100,h:105,l:99,c:104,t:Date.now()-1}).valid,true);
+const out=filterValidBars([good,{o:100,h:99,l:98,c:98},{o:100,h:105,l:99,c:104,t:Date.now()+3600000}]);
+assert.equal(out.length,1,'only valid candles may enter signal engine');
+console.log('V-Zone candle integrity tests: PASS');
