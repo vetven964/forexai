@@ -1,0 +1,19 @@
+'use strict';
+require('dotenv').config();
+const TelegramBot=require('node-telegram-bot-api');
+const {scoreSnapshot,formatTelegram}=require('./vzone-telegram-engine');
+const TOKEN=String(process.env.TELEGRAM_TOKEN||process.env.TELEGRAM_AUTO_TOKEN||'').trim();
+const CHAT_ID=String(process.env.TELEGRAM_CHAT_ID||process.env.TELEGRAM_AUTO_CHAT_ID||'').trim();
+const CORE_URL=String(process.env.VTRADE_CORE_URL||process.env.APP_BASE_URL||'http://127.0.0.1:10000').replace(/\/$/,'');
+const BRIDGE_KEY=String(process.env.TELEGRAM_BRIDGE_API_KEY||process.env.MT5_BRIDGE_API_KEY||'').trim();
+const POLL_MS=Math.max(3000,Number(process.env.VZONE_TELEGRAM_POLL_MS||5000));
+if(!TOKEN||!CHAT_ID){console.error('[V-ZONE TELEGRAM] missing TELEGRAM_TOKEN/TELEGRAM_CHAT_ID');process.exit(1);}
+const bot=new TelegramBot(TOKEN,{polling:true});
+let lastKey='';
+async function market(){const headers=BRIDGE_KEY?{'X-VTRADE-TELEGRAM-KEY':BRIDGE_KEY}:{};const r=await fetch(CORE_URL+'/api/telegram/market-snapshot',{headers,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||d?.success!==true)throw new Error(d?.error||`HTTP ${r.status}`);return d;}
+function key(a){return [a.signal,a.score,a.entry,a.sl,...a.tp].join('|');}
+async function scan(force=false){try{const a=scoreSnapshot(await market());console.log(`[V-ZONE TELEGRAM] ${a.signal} | score=${a.score} | bias=${a.bias} | gates=${a.gateCount} | authorized=${a.authorized}`);if(!force&&!a.authorized)return;const k=key(a);if(k===lastKey)return;await bot.sendMessage(CHAT_ID,formatTelegram(a),{parse_mode:'Markdown'});lastKey=k;}catch(e){console.warn('[V-ZONE TELEGRAM] scan:',e.message);}}
+bot.onText(/^\/(signal|scan)(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await scan(true);});
+bot.onText(/^\/(status|start)(?:@\w+)?$/i,async msg=>{if(String(msg.chat.id)!==CHAT_ID)return;await bot.sendMessage(msg.chat.id,'🤖 *V-Zone AI*\n🟢 Telegram Engine: ONLINE\n📊 XAUUSD: REALTIME\n🧠 ICT + CRT: EQUAL-WEIGHT\n🔐 Auto Order: FAIL-CLOSED',{parse_mode:'Markdown'});});
+console.log('[V-ZONE TELEGRAM] ONLINE | XAUUSD REALTIME | ICT+CRT EQUAL-WEIGHT | FAIL-CLOSED');
+scan(true);setInterval(()=>scan(false),POLL_MS);
