@@ -193,4 +193,17 @@ try {
   throw e;
 }
 
+// VTRADE_REAL_CANDLE_TELEGRAM_BOOT_V2
+// Render uses server-launcher.js directly; therefore the canonical MT5
+// real-candle bridge must be installed on this startup path before server.js
+// and before any Telegram consumer is booted.
+try {
+  require('./vtrade-real-candle-gate-v1.js');
+  require('./vtrade-real-candle-telegram-bridge-hotfix.js');
+  console.log('[V-TRADE LAUNCHER] canonical MT5 real-candle bridge bootstrapped');
+} catch (e) {
+  console.error('[V-TRADE REAL-CANDLE] bridge bootstrap failed:', e.stack || e.message);
+  throw e;
+}
+
 require('./server.js');
