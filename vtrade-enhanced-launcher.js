@@ -80,17 +80,15 @@ function startIndependentTelegram(){
   setTimeout(launch,8000);
   console.log('[V-TRADE PROCESS SEPARATION] CORE=PRE-MARKET/AI | TELEGRAM=BOT-V6 CHILD | canonical authority consumer | delayed=8000ms');
 }
-// Fix any already-injected CRT helper before the server module is loaded.
-// This must run before pre-market routes call buildXauAnalysis().
 try{require('./vtrade-crt-authority-v1.js');console.log('[V-TRADE START] CRT scope hotfix loaded before server boot');}catch(e){console.error('[V-TRADE CRT] FATAL:',e.stack||e.message);throw e;}
-// Patch the bridge contract before the CORE loads it so Telegram receives the full
-// server-authoritative analysis object instead of rebuilding ICT locally.
 try{require('./telegram-authority-contract-v2.js');}catch(e){console.error('[V-TRADE TELEGRAM AUTHORITY] contract patch failed:',e.stack||e.message);throw e;}
 installDashboardUI();
 installTelegramBridge();
 installNewsCalendarGate();
 try{require('./package-access-hotfix.js');console.log('[V-TRADE START] Package/RBAC access gate loaded');}catch(e){console.error('[V-TRADE PACKAGE] FATAL:',e.stack||e.message);throw e;}
 try{require('./pre-market-route-boot-hotfix.js');console.log('[V-TRADE START] Pre-Market route boot hotfix loaded');}catch(e){console.error('[V-TRADE PRE-MARKET] FATAL:',e.stack||e.message);throw e;}
+try{require('./pre-market-signal-authority-v2.js').inject(fs.readFileSync(path.join(ROOT,'server.js'),'utf8'));}catch(e){console.error('[V-TRADE PRE-MARKET SIGNAL V2] patch failed:',e.stack||e.message);throw e;}
+try{const f=path.join(ROOT,'server.js');const mod=require('./pre-market-signal-authority-v2.js');const src=fs.readFileSync(f,'utf8');const patched=mod.inject(src);if(patched!==src)fs.writeFileSync(f,patched,'utf8');console.log('[V-TRADE PRE-MARKET SIGNAL V2] canonical signal authority installed');}catch(e){console.error('[V-TRADE PRE-MARKET SIGNAL V2] install failed:',e.stack||e.message);throw e;}
 try{require('./ai-confirmation-runtime-v2.js');console.log('[V-TRADE START] AI Confirmation Runtime V3 bootstrapped');}catch(e){console.error('[V-TRADE AI] FATAL:',e.stack||e.message);throw e;}
 require('./pre-market-structure-hook.js');
 require('./predeploy-consistency-hotfix.js');
