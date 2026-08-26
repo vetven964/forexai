@@ -125,6 +125,7 @@ function patchWaitCard(source) {
     "    '⚡ Status: *WAIT — NO ORDER AUTHORIZED*','',",
     "    '🔒 No order until all required ICT execution gates pass.',",
     "    '🏦 Broker: *' + broker + '* | Quote age: *' + quoteAge + 's*'].join('\\n');",
+    "  }",
     '}', ''
   ].join('\n');
   const pattern = /function\s+telegramWaitText\s*\(a\)\s*\{[\s\S]*?\n\}\s*(?=\n\s*function\s+)/;
@@ -167,8 +168,6 @@ try {
 }
 
 // VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V1
-// Render may invoke node server-launcher.js directly, so all mandatory
-// pre-market + AI safety/runtime layers must be loaded from this launcher.
 try {
   require('./pre-market-route-boot-hotfix.js');
   console.log('[V-TRADE LAUNCHER] Pre-Market route boot hook loaded');
@@ -193,10 +192,19 @@ try {
   throw e;
 }
 
+// VTRADE_TELEGRAM_MARKET_BRIDGE_RUNTIME_FIX_V7
+// Render uses server-launcher.js directly. Load the Telegram canonical-authority
+// adapter on this exact startup path so it patches telegram-signal-bridge.js
+// before any Telegram signal child is started.
+try {
+  require('./telegram-market-bridge-runtime-fix.js');
+  console.log('[V-TRADE LAUNCHER] Telegram canonical-authority runtime bridge bootstrapped');
+} catch (e) {
+  console.error('[V-TRADE TELEGRAM BRIDGE] runtime bridge bootstrap failed:', e.stack || e.message);
+  throw e;
+}
+
 // VTRADE_REAL_CANDLE_TELEGRAM_BOOT_V2
-// Render uses server-launcher.js directly; therefore the canonical MT5
-// real-candle bridge must be installed on this startup path before server.js
-// and before any Telegram consumer is booted.
 try {
   require('./vtrade-real-candle-gate-v1.js');
   require('./vtrade-real-candle-telegram-bridge-hotfix.js');
