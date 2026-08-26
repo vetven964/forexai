@@ -1,9 +1,9 @@
-/* V-TRADE AI — Pre-Market route boot hotfix V12 */
+/* V-TRADE AI — Pre-Market route boot hotfix V13 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V12';
+const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V13';
 
 if(fs.existsSync(SERVER)){
   let source=fs.readFileSync(SERVER,'utf8');
@@ -24,9 +24,12 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
+  // logic-v4-finalizer installs its wrapper directly into server.js, so reload
+  // source immediately afterward; otherwise a stale source snapshot could undo it.
   try{
     const logic=require('./logic-v4-finalizer.js');
     if(typeof logic.install==='function') logic.install();
+    source=fs.readFileSync(SERVER,'utf8');
     console.log('[V-TRADE LOGIC] V4.2 historical + range/trend engine loaded');
   }catch(e){
     console.error('[V-TRADE LOGIC] V4.2 load failed:',e.stack||e.message);
@@ -72,7 +75,7 @@ if(fs.existsSync(SERVER)){
   if(!source.includes(MARKER)){
     const anchor='const app = express();';
     if(!source.includes(anchor))throw new Error('server app marker not found');
-    const patch=`\n/* ${MARKER} */\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V12: canonical execution pipeline active');\n`;
+    const patch=`\n/* ${MARKER} */\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V13: canonical execution pipeline active');\n`;
     source=source.replace(anchor,anchor+patch);
   }
   fs.writeFileSync(SERVER,source,'utf8');
