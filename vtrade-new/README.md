@@ -1,6 +1,6 @@
-# V TRADE AI — New Website
+# V-Zone AI — Website
 
-Standalone PC/Phone UI. This folder is intentionally isolated from the legacy phone UI.
+Standalone PC/Phone UI for the V-Zone AI project. This folder is intentionally isolated from the legacy phone UI.
 
 ## Test
 
