@@ -1,100 +1,45 @@
 'use strict';
 
 /**
- * V-Zone AI — Rebuilt Telegram Signal Engine
- * XAUUSD-first, realtime, MTF ICT + CRT + equal-weight confirmations.
- * Score: BUY/BULLISH = positive, SELL/BEARISH = negative.
- * Tiers: 10,15,25,35,45,55,65,75,85,95,100.
- * This engine NEVER authorizes an order by score alone: entry/SL/TP,
- * liquidity, S/R safety and realtime MT5 readiness remain hard gates.
+ * V-Zone AI — Realtime Telegram Signal Engine
+ * XAUUSD-first, MTF ICT + CRT + equal-weight confirmations.
+ * Score tiers: 10,15,25,35,45,55,65,75,85,95,100.
+ * Malformed/future candles are rejected before any signal calculation.
+ * Score alone can NEVER authorize an order.
  */
-
-const TIERS = [10, 15, 25, 35, 45, 55, 65, 75, 85, 95, 100];
-const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-const num = v => Number.isFinite(Number(v)) ? Number(v) : null;
-const bars = (snapshot, tf) => {
-  const src = snapshot?.timeframes?.[tf];
-  const raw = Array.isArray(src?.bars) ? src.bars : Array.isArray(src?.candles) ? src.candles : Array.isArray(src) ? src : [];
-  return raw.map(x => ({
-    ...x,
-    o: num(x.o ?? x.open), h: num(x.h ?? x.high), l: num(x.l ?? x.low), c: num(x.c ?? x.close),
-    t: x.t ?? x.time ?? x.timestamp ?? x.openTime ?? x.candleTime
-  })).filter(x => [x.o,x.h,x.l,x.c].every(v => v !== null));
-};
-const sma = (xs, n) => xs.length < n ? null : xs.slice(-n).reduce((a,b)=>a+b,0)/n;
-const avgRange = xs => xs.length ? xs.reduce((s,b)=>s + Math.max(0,b.h-b.l),0)/xs.length : null;
-
-function tier(score) {
-  const s = Math.abs(Math.round(score));
-  return TIERS.reduce((best, t) => Math.abs(t-s) < Math.abs(best-s) ? t : best, TIERS[0]);
+const {filterValidBars}=require('./vzone-candle-integrity');
+const TIERS=[10,15,25,35,45,55,65,75,85,95,100];
+const num=v=>Number.isFinite(Number(v))?Number(v):null;
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+function bars(snapshot,tf){
+ const src=snapshot?.timeframes?.[tf];
+ const raw=Array.isArray(src?.bars)?src.bars:Array.isArray(src?.candles)?src.candles:Array.isArray(src)?src:[];
+ return filterValidBars(raw).map(x=>({...x,o:num(x.o??x.open),h:num(x.h??x.high),l:num(x.l??x.low),c:num(x.c??x.close),t:x.t??x.time??x.timestamp??x.openTime??x.candleTime})).filter(x=>[x.o,x.h,x.l,x.c].every(v=>v!==null));
 }
-
-function liquidity(raw) {
-  if (raw.length < 12) return {bull:false,bear:false,low:null,high:null};
-  const last = raw.at(-1), prior = raw.slice(-11,-1);
-  const low = Math.min(...prior.map(b=>b.l)), high = Math.max(...prior.map(b=>b.h));
-  return {bull:last.l < low && last.c > low, bear:last.h > high && last.c < high, low, high};
+const sma=(xs,n)=>xs.length<n?null:xs.slice(-n).reduce((a,b)=>a+b,0)/n;
+const avgRange=xs=>xs.length?xs.reduce((s,b)=>s+Math.max(0,b.h-b.l),0)/xs.length:null;
+function tier(score){const s=Math.abs(Math.round(score));return TIERS.reduce((best,t)=>Math.abs(t-s)<Math.abs(best-s)?t:best,TIERS[0]);}
+function liquidity(raw){if(raw.length<12)return{bull:false,bear:false,low:null,high:null};const last=raw.at(-1),prior=raw.slice(-11,-1),low=Math.min(...prior.map(b=>b.l)),high=Math.max(...prior.map(b=>b.h));return{bull:last.l<low&&last.c>low,bear:last.h>high&&last.c<high,low,high};}
+function mss(raw){if(raw.length<10)return{bull:false,bear:false};const last=raw.at(-1),p=raw.slice(-7,-1);return{bull:last.c>Math.max(...p.map(b=>b.h)),bear:last.c<Math.min(...p.map(b=>b.l))};}
+function crt(raw){if(raw.length<6)return{bull:false,bear:false};const last=raw.at(-1),prev=raw.at(-2),range=last.h-last.l,prevRange=prev.h-prev.l;if(!(range>0&&prevRange>0))return{bull:false,bear:false};return{bull:last.c>last.o&&last.c>=last.l+range*.7&&range>=prevRange*1.15,bear:last.c<last.o&&last.c<=last.l+range*.3&&range>=prevRange*1.15};}
+function fvg(raw){if(raw.length<3)return{bull:false,bear:false,low:null,high:null};const a=raw.at(-3),c=raw.at(-1);if(c.l>a.h)return{bull:true,bear:false,low:a.h,high:c.l};if(c.h<a.l)return{bull:false,bear:true,low:c.h,high:a.l};return{bull:false,bear:false,low:null,high:null};}
+function ob(raw,side){if(raw.length<5)return{found:false,low:null,high:null};const d=raw.at(-2),last=raw.at(-1),bull=side==='BUY'&&d.c<d.o&&last.c>last.o,bear=side==='SELL'&&d.c>d.o&&last.c<last.o;return{found:bull||bear,low:d.l,high:d.h};}
+function mtf(s){const out=[];for(const tf of ['M5','M15','H1','H4']){const r=bars(s,tf),cl=r.map(b=>b.c),last=cl.at(-1),m20=sma(cl,20),m5=sma(cl,5);if(last==null||m20==null||m5==null)continue;out.push({tf,bias:last>m20&&m5>m20?'BUY':last<m20&&m5<m20?'SELL':'NEUTRAL'});}return out;}
+function scoreSnapshot(s){
+ const raw=bars(s,'M15'),price=num(s.price),lq=liquidity(raw),ms=mss(raw),cr=crt(raw),gap=fvg(raw),rows=mtf(s);
+ const sideCounts={BUY:rows.filter(x=>x.bias==='BUY').length,SELL:rows.filter(x=>x.bias==='SELL').length};
+ const side=sideCounts.BUY>sideCounts.SELL?'BUY':sideCounts.SELL>sideCounts.BUY?'SELL':'NEUTRAL';
+ const closes=raw.map(b=>b.c),m5=sma(closes,5),m20=sma(closes,20),momentum=side==='BUY'?m5>m20:side==='SELL'?m5<m20:false;
+ const range20=raw.slice(-20),hi=range20.length?Math.max(...range20.map(b=>b.h)):null,lo=range20.length?Math.min(...range20.map(b=>b.l)):null,mid=hi!=null&&lo!=null?(hi+lo)/2:null,pd=side==='BUY'?price!=null&&mid!=null&&price<=mid:side==='SELL'?price!=null&&mid!=null&&price>=mid:false;
+ const disp=raw.length>=22?(()=>{const last=raw.at(-1),ar=avgRange(raw.slice(-21,-1)),r=last.h-last.l;return{bull:last.c>last.o&&r>=ar*1.2,bear:last.c<last.o&&r>=ar*1.2};})():{bull:false,bear:false};
+ const obx=ob(raw,side);
+ const gates={ICT_Liquidity:side==='BUY'?lq.bull:side==='SELL'?lq.bear:false,ICT_MSS:side==='BUY'?ms.bull:side==='SELL'?ms.bear:false,ICT_FVG:side==='BUY'?gap.bull:side==='SELL'?gap.bear:false,ICT_OB:obx.found,CRT:side==='BUY'?cr.bull:side==='SELL'?cr.bear:false,Displacement:side==='BUY'?disp.bull:side==='SELL'?disp.bear:false,MTF:rows.length===4&&rows.filter(x=>x.bias===side).length>=3,PremiumDiscount:pd,Momentum:momentum,MT5Realtime:s.connected===true,CandleIntegrity:raw.length>=25};
+ const passed=Object.values(gates).filter(Boolean).length,rawScore=passed/Object.keys(gates).length*100,signed=side==='BUY'?tier(rawScore):side==='SELL'?-tier(rawScore):0;
+ const signal=signed>0?'BuyBullish':signed<0?'SellBearish':'WAIT';
+ const authorized=Math.abs(signed)>=75&&Object.values(gates).every(Boolean)&&raw.length>=25&&rows.length===4&&s.connected===true;
+ let entry=null,sl=null,tp=[];
+ if(authorized&&price!=null){entry=price;if(side==='BUY'){const base=Math.min(...raw.slice(-8).map(b=>b.l)),safe=Math.min(base,lq.low??base);sl=safe-Math.max((price-safe)*.12,.15);const risk=price-sl;tp=[price+risk*1.5,price+risk*2.5,price+risk*3.5];}else{const base=Math.max(...raw.slice(-8).map(b=>b.h)),safe=Math.max(base,lq.high??base);sl=safe+Math.max((safe-price)*.12,.15);const risk=sl-price;tp=[price-risk*1.5,price-risk*2.5,price-risk*3.5];}}
+ return{symbol:'XAUUSD',price,side,signal,score:signed,scoreTier:Math.abs(signed),bias:side==='BUY'?'Bullish':side==='SELL'?'Bearish':'Neutral',timeframe:'M15',realtime:s.connected===true,mtf:rows,gates,gateCount:`${passed}/${Object.keys(gates).length}`,authorized,entry,sl,tp,generatedAt:new Date().toISOString(),reason:authorized?'All equal-weight ICT/CRT confirmations passed':'WAIT — candle/MTF/realtime/execution gates incomplete'};
 }
-function mss(raw) {
-  if (raw.length < 10) return {bull:false,bear:false};
-  const last=raw.at(-1), p=raw.slice(-7,-1);
-  return {bull:last.c > Math.max(...p.map(b=>b.h)), bear:last.c < Math.min(...p.map(b=>b.l))};
-}
-function crt(raw) {
-  if (raw.length < 6) return {bull:false,bear:false};
-  const last=raw.at(-1), prev=raw.at(-2), range=Math.max(0,last.h-last.l), prevRange=Math.max(0,prev.h-prev.l);
-  if (!range || !prevRange) return {bull:false,bear:false};
-  const bull = last.c > last.o && last.c >= last.l + range*0.7 && range >= prevRange*1.15;
-  const bear = last.c < last.o && last.c <= last.l + range*0.3 && range >= prevRange*1.15;
-  return {bull,bear};
-}
-function fvg(raw) {
-  if(raw.length<3)return {bull:false,bear:false,low:null,high:null};
-  const a=raw.at(-3),c=raw.at(-1);
-  if(c.l>a.h)return {bull:true,bear:false,low:a.h,high:c.l};
-  if(c.h<a.l)return {bull:false,bear:true,low:c.h,high:a.l};
-  return {bull:false,bear:false,low:null,high:null};
-}
-function ob(raw, side) {
-  if(raw.length<5)return {found:false,low:null,high:null};
-  const d=raw.at(-2), last=raw.at(-1), bull=side==='BUY' && d.c<d.o && last.c>last.o, bear=side==='SELL' && d.c>d.o && last.c<last.o;
-  return {found:bull||bear,low:d.l,high:d.h};
-}
-function mtf(rows) {
-  const out=[];
-  for(const tf of ['M5','M15','H1','H4']){
-    const r=bars(rows,tf), closes=r.map(b=>b.c), last=closes.at(-1), m20=sma(closes,20), m5=sma(closes,5);
-    if(last==null||m20==null||m5==null)continue;
-    out.push({tf,bias:last>m20&&m5>m20?'BUY':last<m20&&m5<m20?'SELL':'NEUTRAL'});
-  }
-  return out;
-}
-function scoreSnapshot(s) {
-  const raw=bars(s,'M15'), price=num(s.price), lq=liquidity(raw), ms=mss(raw), cr=crt(raw), gap=fvg(raw), rows=mtf(s), sideCounts={BUY:rows.filter(x=>x.bias==='BUY').length,SELL:rows.filter(x=>x.bias==='SELL').length};
-  const side=sideCounts.BUY>sideCounts.SELL?'BUY':sideCounts.SELL>sideCounts.BUY?'SELL':'NEUTRAL';
-  const closes=raw.map(b=>b.c), m5=sma(closes,5),m20=sma(closes,20), momentum=side==='BUY'?m5>m20:side==='SELL'?m5<m20:false;
-  const range20=raw.slice(-20), hi=range20.length?Math.max(...range20.map(b=>b.h)):null,lo=range20.length?Math.min(...range20.map(b=>b.l)):null,mid=hi!=null&&lo!=null?(hi+lo)/2:null;
-  const pd=side==='BUY'?price!=null&&mid!=null&&price<=mid:side==='SELL'?price!=null&&mid!=null&&price>=mid:false;
-  const disp=raw.length>=22?(() => {const last=raw.at(-1), ar=avgRange(raw.slice(-21,-1)), r=last.h-last.l;return {bull:last.c>last.o&&r>=ar*1.2,bear:last.c<last.o&&r>=ar*1.2};})():{bull:false,bear:false};
-  const obx=ob(raw,side);
-  // Equal-weight confirmation families. Each contributes one point to the gate score.
-  const gates={ICT_Liquidity:side==='BUY'?lq.bull:side==='SELL'?lq.bear:false,ICT_MSS:side==='BUY'?ms.bull:side==='SELL'?ms.bear:false,ICT_FVG:side==='BUY'?gap.bull:side==='SELL'?gap.bear:false,ICT_OB:obx.found,CRT:side==='BUY'?cr.bull:side==='SELL'?cr.bear:false,Displacement:side==='BUY'?disp.bull:side==='SELL'?disp.bear:false,MTF:rows.length===4&&rows.filter(x=>x.bias===side).length>=3,PremiumDiscount:pd,Momentum:momentum,MT5Realtime:s.connected===true};
-  const passed=Object.values(gates).filter(Boolean).length;
-  const rawScore=passed/Object.keys(gates).length*100;
-  const signed=side==='BUY'?tier(rawScore):side==='SELL'?-tier(rawScore):0;
-  const signal=signed>0?'BuyBullish':signed<0?'SellBearish':'WAIT';
-  const authorized=Math.abs(signed)>=75 && Object.values(gates).every(Boolean);
-  let entry=null,sl=null,tp=[];
-  if(authorized&&price!=null){entry=price;if(side==='BUY'){const base=Math.min(...raw.slice(-8).map(b=>b.l)),safe=Math.min(base,lq.low??base);sl=safe-Math.max((price-safe)*0.12,0.15);const risk=price-sl;tp=[price+risk*1.5,price+risk*2.5,price+risk*3.5];}else{const base=Math.max(...raw.slice(-8).map(b=>b.h)),safe=Math.max(base,lq.high??base);sl=safe+Math.max((safe-price)*0.12,0.15);const risk=sl-price;tp=[price-risk*1.5,price-risk*2.5,price-risk*3.5];}}
-  return {symbol:'XAUUSD',price,side,signal,score:signed,scoreTier:Math.abs(signed),bias:side==='BUY'?'Bullish':side==='SELL'?'Bearish':'Neutral',timeframe:'M15',realtime:s.connected===true,mtf:rows,gates,gateCount:`${passed}/${Object.keys(gates).length}`,authorized,entry,sl,tp,generatedAt:new Date().toISOString(),reason:authorized?'All equal-weight ICT/CRT confirmations passed':'Waiting for full ICT/CRT/realtime confirmation'};
-}
-
-function formatTelegram(a) {
-  const action=a.signal==='BuyBullish'?'🟢 BUY LONG / BULLISH':a.signal==='SellBearish'?'🔴 SELL SHORT / BEARISH':'🟡 WAIT';
-  const zone=a.authorized?'ENTER ZONE':'NO ENTRY ZONE';
-  const f=v=>v==null?'WAIT':Number(v).toFixed(2);
-  const gates=Object.entries(a.gates).map(([k,v])=>`${v?'✅':'⏳'} ${k}`).join(' | ');
-  return ['🤖 *V-Zone AI*','',`📊 XAUUSD | ${a.timeframe} REALTIME`,`💰 Price: *${f(a.price)}*`,`⚡ Action: *${action}*`,`📍 *${zone}*`,`📈 Score: *${a.score}/100* | Bias: *${a.bias}*`,`🧠 Gate: *${a.gateCount}*`,'',`🔎 ${gates}`,'',`🎯 Entry: *${f(a.entry)}*`,`🛑 SL: *${f(a.sl)}*`,`🎯 TP1: *${f(a.tp[0])}* | TP2: *${f(a.tp[1])}* | TP3: *${f(a.tp[2])}*`,'',a.authorized?'🔐 *READY — ORDER AUTHORIZATION GATE PASSED*':'⏳ *WAIT — NO ORDER AUTHORIZED*',`🛡️ SL protected outside nearby RS/SP / liquidity zone`,`🕒 ${a.generatedAt}`].join('\n');
-}
-
+function formatTelegram(a){const action=a.signal==='BuyBullish'?'🟢 BUY LONG / BULLISH':a.signal==='SellBearish'?'🔴 SELL SHORT / BEARISH':'🟡 WAIT',zone=a.authorized?'ENTER ZONE':'NO ENTRY ZONE',f=v=>v==null?'WAIT':Number(v).toFixed(2),gates=Object.entries(a.gates).map(([k,v])=>`${v?'✅':'⏳'} ${k}`).join(' | ');return['🤖 *V-Zone AI*','',`📊 XAUUSD | ${a.timeframe} REALTIME`,`💰 Price: *${f(a.price)}*`,`⚡ Action: *${action}*`,`📍 *${zone}*`,`📈 Score: *${a.score}/100* | Bias: *${a.bias}*`,`🧠 Gate: *${a.gateCount}*`,'',`🔎 ${gates}`,'',`🎯 Entry: *${f(a.entry)}*`,`🛑 SL: *${f(a.sl)}*`,`🎯 TP1: *${f(a.tp[0])}* | TP2: *${f(a.tp[1])}* | TP3: *${f(a.tp[2])}`,'',a.authorized?'🔐 *READY — ORDER AUTHORIZATION GATE PASSED*':'⏳ *WAIT — NO ORDER AUTHORIZED*','🛡️ SL protected outside nearby RS/SP / liquidity zone',`🕒 ${a.generatedAt}`].join('\n');}
 module.exports={TIERS,bars,scoreSnapshot,formatTelegram};
