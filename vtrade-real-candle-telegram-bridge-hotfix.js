@@ -23,10 +23,12 @@ if (typeof originalFetch !== 'function') {
     const tfReady = core.every(k => {
       const x=tf[k]||{};
       const gateRow=gate.timeframes?.[k]||{};
-      return x.realCandle===true || gateRow.realCandle===true;
+      const bars=Number(x.bars ?? gateRow.bars ?? 0);
+      return (x.realCandle===true || gateRow.realCandle===true) && bars>=30;
     });
     const m5 = tf.M5||{};
-    const candle = m5.candle || (Array.isArray(m5.candles) ? m5.candles[m5.candles.length-1] : null);
+    const gateM5 = gate.timeframes?.M5 || {};
+    const candle = m5.candle || m5.lastCandle || gateM5.lastCandle || (Array.isArray(m5.candles) ? m5.candles[m5.candles.length-1] : null);
     const valid = validOhlc(candle);
     const real = coreReady && tfReady && valid;
     const next = { ...a, realCandle: real, candleValid: real, fakeCandle: !real, syntheticCandle: !real };
