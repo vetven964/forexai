@@ -1,4 +1,4 @@
-name: V TRADE AI New Website Smoke
+name: V-Zone AI Website Smoke
 
 on:
   push:
@@ -26,5 +26,5 @@ jobs:
           node-version: 24
       - name: S/R + Liquidity execution guard tests
         run: node tests/logic-v4-sr-liquidity.test.js
-      - name: Standalone new website smoke test
+      - name: V-Zone AI website smoke test
         run: node scripts/vtrade-new-smoke.mjs
