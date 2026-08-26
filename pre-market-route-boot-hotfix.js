@@ -1,9 +1,9 @@
-/* V-TRADE AI — Pre-Market route boot hotfix V13 */
+/* V-TRADE AI — Pre-Market route boot hotfix V14 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V13';
+const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V14';
 
 if(fs.existsSync(SERVER)){
   let source=fs.readFileSync(SERVER,'utf8');
@@ -24,8 +24,6 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
-  // logic-v4-finalizer installs its wrapper directly into server.js, so reload
-  // source immediately afterward; otherwise a stale source snapshot could undo it.
   try{
     const logic=require('./logic-v4-finalizer.js');
     if(typeof logic.install==='function') logic.install();
@@ -72,10 +70,12 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
+  // STRICT REAL CANDLE POLICY: signal analysis is fail-closed unless the final
+  // analysis contains validated MT5 broker-native OHLC for every core timeframe.
   if(!source.includes(MARKER)){
     const anchor='const app = express();';
     if(!source.includes(anchor))throw new Error('server app marker not found');
-    const patch=`\n/* ${MARKER} */\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V13: canonical execution pipeline active');\n`;
+    const patch=`\n/* ${MARKER} */\n(function installRealCandleOnlyPolicy(){\n  const gate=require('./vtrade-real-candle-gate-v1.js');\n  const originalBuild=buildXauAnalysis;\n  buildXauAnalysis=async function(){\n    const result=await originalBuild.apply(this,arguments);\n    const feed=(typeof brokerFeed!=='undefined'&&brokerFeed)||result?.brokerFeed||result?.mt5?.brokerFeed;\n    const checked=gate.install(result,feed);\n    if(checked?.realCandleGate?.ok!==true){\n      console.warn('[V-TRADE REAL CANDLE] BLOCKED | MT5 broker-native M5/M15/H1/H4 candles not ready');\n      return checked;\n    }\n    console.log('[V-TRADE REAL CANDLE] PASS | MT5 OHLC + real wick/shadow only');\n    return checked;\n  };\n  console.log('[V-TRADE REAL CANDLE] STRICT POLICY ACTIVE | synthetic candles DISABLED');\n})();\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V14: canonical + REAL-MT5-candle execution pipeline active');\n`;
     source=source.replace(anchor,anchor+patch);
   }
   fs.writeFileSync(SERVER,source,'utf8');
