@@ -4,7 +4,7 @@
   "description": "V-Zone AI XAUUSD realtime ICT + CRT Telegram signal engine",
   "main": "server.js",
   "scripts": {
-    "start": "node vtrade-final-launcher.js",
+    "start": "node pre-market-route-boot-hotfix.js && node vtrade-final-launcher.js",
     "telegram:ai": "node vzone-telegram-bot.js"
   },
   "dependencies": {
