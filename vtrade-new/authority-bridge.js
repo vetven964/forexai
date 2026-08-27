@@ -1,10 +1,12 @@
 // V-Zone AI — canonical MT5 authority bridge for the new UI.
-// Keeps the UI fail-closed while removing the protected legacy analysis dependency.
+// UI always prefers the canonical MT5 authority route, then falls back to the
+// legacy analysis endpoint only when the canonical route is unavailable.
 'use strict';
 (() => {
   const nativeFetch = window.fetch.bind(window);
-  const API = 'https://forexai-6xw6.onrender.com';
+  const API = window.VZONE_API_BASE || location.origin;
   const targetPath = '/api/analysis/xauusd';
+  const marketPaths = ['/api/pre-market/mt5-authoritative','/api/analysis/xauusd','/api/market-snapshot','/api/telegram/market-snapshot'];
 
   const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), {
     status,
@@ -13,10 +15,10 @@
 
   const adapt = (raw) => {
     const d = raw || {};
-    const frames = { ...(d.timeframes || {}) };
+    const frames = { ...(d.timeframes || d.frames || {}) };
     Object.keys(frames).forEach((tf) => {
       const f = frames[tf] || {};
-      const direction = String(f.direction || f.trend || 'NEUTRAL').toUpperCase();
+      const direction = String(f.direction || f.trend || f.bias || 'NEUTRAL').toUpperCase();
       frames[tf] = {
         ...f,
         trend: direction,
@@ -41,11 +43,11 @@
       success: d.success !== false,
       signal: side,
       bias: String(d.bias || 'NEUTRAL').toUpperCase(),
-      directionScore: Number(d.directionScore || 0),
-      score: Number(d.directionScore || 0),
+      directionScore: Number(d.directionScore ?? d.score ?? 0),
+      score: Number(d.directionScore ?? d.score ?? 0),
       entry,
-      stopLoss: null,
-      takeProfit: [],
+      stopLoss: d.stopLoss ?? null,
+      takeProfit: Array.isArray(d.takeProfit) ? d.takeProfit : [],
       executionTimeframe: 'M15',
       confirmations: gates,
       timeframes: frames,
@@ -60,28 +62,35 @@
     };
   };
 
+  async function getMarket() {
+    let lastError = null;
+    for (const marketPath of marketPaths) {
+      try {
+        const r = await nativeFetch(API + marketPath, {
+          method: 'GET', credentials: 'include', cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', 'X-V-Zone-UI': 'canonical-authority-v2' }
+        });
+        const raw = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(raw?.error || `HTTP ${r.status}`);
+        console.debug('[V-ZONE UI] MARKET BRIDGE OK |', marketPath);
+        return adapt(raw);
+      } catch (error) {
+        lastError = error;
+        console.warn('[V-ZONE UI] MARKET ENDPOINT MISS |', marketPath, '|', error?.message || error);
+      }
+    }
+    throw lastError || new Error('Canonical MT5 authority unavailable');
+  }
+
   window.fetch = async (input, init) => {
     let url = '';
     try { url = new URL(typeof input === 'string' ? input : input.url, location.href).toString(); } catch (_) {}
     if (!url || !url.startsWith(API + targetPath)) return nativeFetch(input, init);
-
-    try {
-      const r = await nativeFetch(API + '/api/pre-market/mt5-authoritative', {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', 'X-V-Zone-UI': 'canonical-authority-v1' }
-      });
-      const raw = await r.json().catch(() => ({}));
-      return jsonResponse(adapt(raw), r.ok ? 200 : r.status);
-    } catch (error) {
+    try { return jsonResponse(await getMarket(), 200); }
+    catch (error) {
       return jsonResponse({
-        success: false,
-        signal: 'WAIT',
-        bias: 'NEUTRAL',
-        directionScore: 0,
-        authorized: false,
-        error: String(error?.message || 'Canonical MT5 authority unavailable'),
+        success: false, signal: 'WAIT', bias: 'NEUTRAL', directionScore: 0,
+        authorized: false, error: String(error?.message || 'Canonical MT5 authority unavailable'),
         uiSource: 'MT5_AUTHORITATIVE_V4'
       }, 503);
     }
