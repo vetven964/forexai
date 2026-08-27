@@ -32,3 +32,5 @@ services:
         sync: false
       - key: TELEGRAM_BRIDGE_API_KEY
         sync: false
+      - key: VZONE_TELEGRAM_POLL_MS
+        value: "5000"
