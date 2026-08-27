@@ -1,0 +1,9 @@
+# V-ZONE AI Telegram Worker
+# Create a separate Render Background Worker using this start command:
+# node vzone-telegram-bot.js
+services:
+  - type: worker
+    name: v-zone-ai-telegram
+    runtime: node
+    buildCommand: npm install
+    startCommand: node vzone-telegram-bot.js
