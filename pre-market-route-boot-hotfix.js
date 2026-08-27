@@ -52,6 +52,13 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
+  // DEPLOY SAFETY: Render may start vtrade-final-launcher directly. Verify the
+  // authoritative route is physically persisted in server.js before the server starts.
+  if(!source.includes('VTRADE_PREMARKET_AUTHORITY_ROUTE_V4') || !source.includes("app.get('/api/pre-market/mt5-authoritative'")){
+    throw new Error('authoritative MT5 market route was not persisted into server.js');
+  }
+  console.log('[V-TRADE PRE-MARKET AUTH] DEPLOY VERIFY PASS | /api/pre-market/mt5-authoritative persisted');
+
   try{
     const monday=require('./monday-fresh-candle-contract.js');
     source=monday.patch(source);
