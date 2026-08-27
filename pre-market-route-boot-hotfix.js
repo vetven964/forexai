@@ -1,9 +1,9 @@
-/* V-TRADE AI — Pre-Market route boot hotfix V14 */
+/* V-TRADE AI — Pre-Market route boot hotfix V15 */
 'use strict';
 const fs=require('fs');
 const path=require('path');
 const SERVER=path.join(__dirname,'server.js');
-const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V14';
+const MARKER='VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V15';
 
 if(fs.existsSync(SERVER)){
   let source=fs.readFileSync(SERVER,'utf8');
@@ -27,8 +27,10 @@ if(fs.existsSync(SERVER)){
   try{
     const logic=require('./logic-v4-finalizer.js');
     if(typeof logic.install==='function') logic.install();
+    // logic.install() may repair an already-persisted legacy wrapper. Refresh the
+    // source before later boot patches so the repair is never overwritten by stale text.
     source=fs.readFileSync(SERVER,'utf8');
-    console.log('[V-TRADE LOGIC] V4.2 historical + range/trend engine loaded');
+    console.log('[V-TRADE LOGIC] V4.2 historical + range/trend engine loaded and wrapper verified');
   }catch(e){
     console.error('[V-TRADE LOGIC] V4.2 load failed:',e.stack||e.message);
     throw e;
@@ -52,8 +54,6 @@ if(fs.existsSync(SERVER)){
     throw e;
   }
 
-  // DEPLOY SAFETY: Render may start vtrade-final-launcher directly. Verify the
-  // authoritative route is physically persisted in server.js before the server starts.
   if(!source.includes('VTRADE_PREMARKET_AUTHORITY_ROUTE_V4') || !source.includes("app.get('/api/pre-market/mt5-authoritative'")){
     throw new Error('authoritative MT5 market route was not persisted into server.js');
   }
@@ -79,10 +79,10 @@ if(fs.existsSync(SERVER)){
 
   // STRICT REAL CANDLE POLICY: signal analysis is fail-closed unless the final
   // analysis contains validated MT5 broker-native OHLC for every core timeframe.
-  if(!source.includes(MARKER)){
+  if(!source.includes('VTRADE_PREMARKET_ROUTE_BOOT_HOTFIX_V14')&&!source.includes(MARKER)){
     const anchor='const app = express();';
     if(!source.includes(anchor))throw new Error('server app marker not found');
-    const patch=`\n/* ${MARKER} */\n(function installRealCandleOnlyPolicy(){\n  const gate=require('./vtrade-real-candle-gate-v1.js');\n  const originalBuild=buildXauAnalysis;\n  buildXauAnalysis=async function(){\n    const result=await originalBuild.apply(this,arguments);\n    const feed=(typeof brokerFeed!=='undefined'&&brokerFeed)||result?.brokerFeed||result?.mt5?.brokerFeed;\n    const checked=gate.install(result,feed);\n    if(checked?.realCandleGate?.ok!==true){\n      console.warn('[V-TRADE REAL CANDLE] BLOCKED | MT5 broker-native M5/M15/H1/H4 candles not ready');\n      return checked;\n    }\n    console.log('[V-TRADE REAL CANDLE] PASS | MT5 OHLC + real wick/shadow only');\n    return checked;\n  };\n  console.log('[V-TRADE REAL CANDLE] STRICT POLICY ACTIVE | synthetic candles DISABLED');\n})();\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V14: canonical + REAL-MT5-candle execution pipeline active');\n`;
+    const patch=`\n/* ${MARKER} */\n(function installRealCandleOnlyPolicy(){\n  const gate=require('./vtrade-real-candle-gate-v1.js');\n  const originalBuild=buildXauAnalysis;\n  buildXauAnalysis=async function(){\n    const result=await originalBuild.apply(this,arguments);\n    const feed=(typeof brokerFeed!=='undefined'&&brokerFeed)||result?.brokerFeed||result?.mt5?.brokerFeed;\n    const checked=gate.install(result,feed);\n    if(checked?.realCandleGate?.ok!==true){\n      console.warn('[V-TRADE REAL CANDLE] BLOCKED | MT5 broker-native M5/M15/H1/H4 candles not ready');\n      return checked;\n    }\n    console.log('[V-TRADE REAL CANDLE] PASS | MT5 OHLC + real wick/shadow only');\n    return checked;\n  };\n  console.log('[V-TRADE REAL CANDLE] STRICT POLICY ACTIVE | synthetic candles DISABLED');\n})();\n// Canonical authority + V4.2 evidence engine + Monday freshness + timezone-correct Telegram state.\nconsole.log('[V-TRADE PRE-MARKET] ROUTE BOOT V15: canonical + REAL-MT5-candle execution pipeline active');\n`;
     source=source.replace(anchor,anchor+patch);
   }
   fs.writeFileSync(SERVER,source,'utf8');
