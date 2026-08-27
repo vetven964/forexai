@@ -1,5 +1,7 @@
 'use strict';
 require('dotenv').config();
+// Load compatibility binding before legacy Telegram consumers.
+require('./vzone-runtime-compat');
 const TelegramBot=require('node-telegram-bot-api');
 const {scoreSnapshot,formatTelegram}=require('./vzone-telegram-engine');
 const TOKEN=String(process.env.TELEGRAM_TOKEN||process.env.TELEGRAM_AUTO_TOKEN||'').trim();
